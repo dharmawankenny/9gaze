@@ -1,14 +1,14 @@
 // Sticky bottom "New Gaze" action button.
 
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:kensa_9gaze/app/theme.dart';
+import 'package:kensa_9gaze/widgets/animated_gaze_face.dart';
 
 /// Full-width pill-shaped button pinned to the bottom of the
-/// screen. Shows the base-face icon on the left, label in the
-/// center, and a forward-arrow icon on the right.
+/// screen. Shows the animated gaze face on the left, label in
+/// the center, and a forward-arrow icon on the right.
 class NewGazeButton extends StatelessWidget {
   const NewGazeButton({super.key, this.onPressed});
 
@@ -36,19 +36,25 @@ class NewGazeButton extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 20),
             ),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              mainAxisAlignment: MainAxisAlignment.start,
               children: [
-                SvgPicture.asset(
-                  'assets/icons/base_face_primary.svg',
-                  width: 28,
-                  height: 28,
-                ),
-                Text(
-                  'New Gaze',
-                  style: GoogleFonts.bricolageGrotesque(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: kWhite,
+                // Animated face cycles through all 9 gaze
+                // directions. Eye cut-out colour matches the
+                // button background so the pupils appear as
+                // transparent holes.
+                AnimatedGazeFace(size: 28, eyeColor: kAccentBlue),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Text(
+                      'New Gaze',
+                      style: GoogleFonts.bricolageGrotesque(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: kWhite,
+                      ),
+                      textAlign: TextAlign.start,
+                    ),
                   ),
                 ),
                 const Icon(Icons.arrow_forward, color: kWhite, size: 24),
