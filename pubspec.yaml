@@ -39,6 +39,7 @@ dependencies:
   drift: ^2.32.1
   drift_flutter: ^0.3.0
   path_provider: ^2.1.5
+  flutter_native_splash: ^2.4.7
 
 dev_dependencies:
   flutter_test:
@@ -52,6 +53,7 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   drift_dev: ^2.32.1
   build_runner: ^2.13.1
+  flutter_launcher_icons: ^0.14.4
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -67,3 +69,32 @@ flutter:
   assets:
     - assets/icons/
     - assets/fonts/
+    - assets/launcher/
+
+# ─── Launcher icon configuration ────────────────────────────────────────────
+# Run: dart run flutter_launcher_icons
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  # Full-bleed logo (blue bg) used as legacy/fallback icon on older Android
+  # and as the base iOS icon.
+  image_path: "assets/launcher/app_logo.png"
+  min_sdk_android: 21
+  # Android adaptive icon (API 26+): transparent foreground over solid
+  # #003BFF background so the OS can apply its own shape mask.
+  adaptive_icon_background: "#003BFF"
+  adaptive_icon_foreground: "assets/launcher/app_logo_transparent.png"
+  # Android 13+ monochrome themed icon uses same transparent asset.
+  adaptive_icon_monochrome: "assets/launcher/app_logo_transparent.png"
+
+# ─── Native splash screen configuration ─────────────────────────────────────
+# Run: dart run flutter_native_splash:create
+flutter_native_splash:
+  color: "#003BFF"
+  image: "assets/launcher/splash_screen.png"
+  # Keep splash until Flutter signals it's ready (call
+  # FlutterNativeSplash.remove() in main after init).
+  android_12:
+    color: "#003BFF"
+    image: "assets/launcher/splash_screen.png"
+    icon_background_color: "#003BFF"
