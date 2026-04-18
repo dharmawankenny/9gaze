@@ -1,13 +1,17 @@
-// Top bar widget displaying the 9Gaze logo and primary icon.
+// Top bar widget displaying the 9Gaze logo and animated gaze icon.
 
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:kensa_9gaze/app/theme.dart';
+import 'package:kensa_9gaze/widgets/animated_gaze_face.dart';
 
-/// Renders the screen title "9Gaze" on the left and the
-/// primary SVG icon on the right.
+/// Renders the screen title "9Gaze" on the left and an animated
+/// gaze face icon on the right.
+///
+/// The icon replicates the original primary.svg layout: a 48×48
+/// transparent container with a 3px white border at 12px radius,
+/// housing a 24×24 animated face centred within it.
 class HomeTopBar extends StatelessWidget {
   const HomeTopBar({super.key});
 
@@ -28,7 +32,21 @@ class HomeTopBar extends StatelessWidget {
               color: kWhite,
             ),
           ),
-          SvgPicture.asset('assets/icons/primary.svg', width: 48, height: 48),
+          // Mirrors the primary.svg bounding box: 48×48, transparent
+          // fill, 3px white stroke, 12px border radius.
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              border: Border.all(color: kWhite, width: 3),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            alignment: Alignment.center,
+            child: const AnimatedGazeFace.static(
+              direction: GazeDirection.primary,
+              size: 24,
+            ),
+          ),
         ],
       ),
     );
