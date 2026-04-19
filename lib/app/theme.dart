@@ -6,7 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 const kAccentBlue = Color(0xFF003BFF);
 const kWhite = Color(0xFFFAFAFA);
 const kBlack = Color(0xFF000000);
-const kSearchBg = Color(0xFF000926);
+const kDarkBlue = Color(0xFF000926);
 
 /// Centralized theme configuration for the 9Gaze app.
 class AppTheme {

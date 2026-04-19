@@ -1,9 +1,8 @@
 // Main home screen that composes the top bar, search bar,
 // gaze list, and sticky new-gaze button.
 //
-// Owns the single gazes stream subscription so both the list
-// and the button can react to empty/non-empty state without
-// duplicating DB connections.
+// Owns the single gazes stream and the search query so both
+// the list and the button share state without extra streams.
 
 import 'package:flutter/material.dart';
 
@@ -33,12 +32,25 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final _repo = GazesRepository(appDatabase);
   late final Stream<List<Gaze>> _gazesStream;
+  final _searchController = TextEditingController();
+  String _query = '';
 
   @override
   void initState() {
     super.initState();
     _gazesStream = _repo.watchAll();
     WidgetsBinding.instance.addPostFrameCallback((_) => removeSplash());
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  /// Updates query state on every keystroke.
+  void _handleSearchChanged(String value) {
+    setState(() => _query = value.trim().toLowerCase());
   }
 
   /// Opens the new-gaze bottom sheet.
@@ -54,13 +66,24 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  /// Filters [all] by the current [_query] (case-insensitive
+  /// substring match on name). Returns [all] unchanged when
+  /// the query is empty.
+  List<Gaze> _applyFilter(List<Gaze> all) {
+    if (_query.isEmpty) return all;
+    return all
+        .where((g) => g.name.toLowerCase().contains(_query))
+        .toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<Gaze>>(
       stream: _gazesStream,
       builder: (context, snapshot) {
-        final gazes = snapshot.data ?? [];
-        final hasEntries = gazes.isNotEmpty;
+        final allGazes = snapshot.data ?? [];
+        final hasEntries = allGazes.isNotEmpty;
+        final filtered = _applyFilter(allGazes);
 
         return Scaffold(
           body: SafeArea(
@@ -69,14 +92,21 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 const SizedBox(height: 16),
                 const HomeTopBar(),
-                const SizedBox(height: 20),
-                const HomeSearchBar(),
+                // Search bar hidden when no entries exist at all.
+                if (hasEntries) ...[
+                  const SizedBox(height: 20),
+                  HomeSearchBar(
+                    controller: _searchController,
+                    onChanged: _handleSearchChanged,
+                  ),
+                ],
                 Expanded(
                   child: GazeListView(
-                    gazes: gazes,
+                    gazes: filtered,
                     isLoading: snapshot.connectionState ==
                         ConnectionState.waiting,
                     hasError: snapshot.hasError,
+                    isFiltered: _query.isNotEmpty,
                     onDelete: (gaze) => _repo.delete(gaze.id),
                   ),
                 ),

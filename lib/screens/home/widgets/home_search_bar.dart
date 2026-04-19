@@ -1,14 +1,28 @@
-// Pill-shaped search bar with a people-search icon.
+// Pill-shaped search bar with a people-search icon and live
+// text input. Notifies parent of query changes via [onChanged].
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:kensa_9gaze/app/theme.dart';
 
-/// Renders a rounded search bar with a leading person-search
-/// icon and placeholder text, both at 50% opacity white.
+/// Rounded search input with a leading person-search icon.
+///
+/// [controller] and [onChanged] are required so the parent
+/// screen can filter the list reactively without duplicating
+/// controller ownership.
 class HomeSearchBar extends StatelessWidget {
-  const HomeSearchBar({super.key});
+  const HomeSearchBar({
+    super.key,
+    required this.controller,
+    required this.onChanged,
+  });
+
+  /// Text controller owned by the parent.
+  final TextEditingController controller;
+
+  /// Called on every keystroke with the current query string.
+  final ValueChanged<String> onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -17,9 +31,9 @@ class HomeSearchBar extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
         decoration: BoxDecoration(
-          color: kSearchBg,
+          color: kDarkBlue,
           borderRadius: BorderRadius.circular(50),
         ),
         child: Row(
@@ -27,11 +41,20 @@ class HomeSearchBar extends StatelessWidget {
             Icon(Icons.person_search, color: hintColor, size: 24),
             const SizedBox(width: 8),
             Expanded(
-              child: Text(
-                'Search by name...',
+              child: TextField(
+                controller: controller,
+                onChanged: onChanged,
                 style: GoogleFonts.bricolageGrotesque(
-                  color: hintColor,
+                  color: kWhite,
                   fontSize: 16,
+                ),
+                decoration: InputDecoration(
+                  border: InputBorder.none,
+                  hintText: 'Search by name...',
+                  hintStyle: GoogleFonts.bricolageGrotesque(
+                    color: hintColor,
+                    fontSize: 16,
+                  ),
                 ),
               ),
             ),

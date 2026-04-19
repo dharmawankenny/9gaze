@@ -1,6 +1,6 @@
 // Bottom sheet form for creating a new Gaze entry. Shows a
 // single patient-name field and a submit button. On submit it
-// writes to the DB, switches the button to a 'Submitted' state,
+// writes to the DB, switches the button to a 'Created' state,
 // waits 500 ms, then closes the sheet.
 
 import 'package:flutter/material.dart';
@@ -9,12 +9,13 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:kensa_9gaze/app/theme.dart';
 import 'package:kensa_9gaze/db/database_provider.dart';
 import 'package:kensa_9gaze/repositories/gazes_repository.dart';
+import 'package:kensa_9gaze/screens/gaze_detail/gaze_detail_screen.dart';
 import 'package:kensa_9gaze/widgets/animated_gaze_face.dart';
 
 /// Modal bottom sheet content for the "New Gaze" flow.
 ///
 /// Owns the text field, submission logic, and the transient
-/// 'Submitted' confirmation state before auto-closing.
+/// 'Created' confirmation state before auto-closing.
 class NewGazeSheet extends StatefulWidget {
   const NewGazeSheet({super.key});
 
@@ -40,14 +41,16 @@ class _NewGazeSheetState extends State<NewGazeSheet> {
     super.dispose();
   }
 
-  /// Validates, inserts the gaze, shows confirmation, then closes.
+  /// Validates, inserts the gaze, shows confirmation, closes the
+  /// sheet, then pushes [GazeDetailScreen] with the new row.
   Future<void> _handleSubmit() async {
     final name = _nameController.text.trim();
     if (name.isEmpty || _loading || _submitted) return;
 
     setState(() => _loading = true);
 
-    await _repo.create(name);
+    final newId = await _repo.create(name);
+    final newGaze = await _repo.getById(newId);
 
     if (!mounted) return;
     setState(() {
@@ -55,10 +58,18 @@ class _NewGazeSheetState extends State<NewGazeSheet> {
       _submitted = true;
     });
 
-    // Brief confirmation pause before dismissing.
-    await Future<void>.delayed(const Duration(milliseconds: 2000));
+    // Brief confirmation pause before navigating away.
+    await Future<void>.delayed(const Duration(milliseconds: 500));
 
-    if (mounted) Navigator.of(context).pop();
+    if (!mounted) return;
+    // Pop the sheet first, then push the detail screen so the
+    // back button on the detail screen returns to home.
+    Navigator.of(context).pop();
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => GazeDetailScreen(gaze: newGaze),
+      ),
+    );
   }
 
   @override
@@ -103,7 +114,7 @@ class _NewGazeSheetState extends State<NewGazeSheet> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
             decoration: BoxDecoration(
-              color: kSearchBg,
+              color: kDarkBlue,
               borderRadius: BorderRadius.circular(50),
             ),
             child: TextField(
@@ -151,29 +162,12 @@ class _NewGazeSheetState extends State<NewGazeSheet> {
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(horizontal: 20),
               ),
-              child: _loading
-                  ? _buildLoadingContent()
-                  : _submitted
+              child: _submitted
                   ? _buildSubmittedContent()
                   : _buildIdleContent(),
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  /// Button content while the insert is in-flight.
-  Widget _buildLoadingContent() {
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 12),
-      child: SizedBox(
-        height: 20,
-        width: 20,
-        child: CircularProgressIndicator(
-          strokeWidth: 2,
-          valueColor: AlwaysStoppedAnimation<Color>(kWhite),
-        ),
       ),
     );
   }
@@ -192,7 +186,7 @@ class _NewGazeSheetState extends State<NewGazeSheet> {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Text(
-              'Submitted',
+              'Created',
               style: GoogleFonts.bricolageGrotesque(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
