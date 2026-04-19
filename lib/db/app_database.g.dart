@@ -30,6 +30,45 @@ class $GazesTable extends Gazes with TableInfo<$GazesTable, Gaze> {
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _notesMeta = const VerificationMeta('notes');
+  @override
+  late final GeneratedColumn<String> notes = GeneratedColumn<String>(
+    'notes',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _isCompactMeta = const VerificationMeta(
+    'isCompact',
+  );
+  @override
+  late final GeneratedColumn<bool> isCompact = GeneratedColumn<bool>(
+    'is_compact',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_compact" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _isDoublePrimaryMeta = const VerificationMeta(
+    'isDoublePrimary',
+  );
+  @override
+  late final GeneratedColumn<bool> isDoublePrimary = GeneratedColumn<bool>(
+    'is_double_primary',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_double_primary" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -55,7 +94,15 @@ class $GazesTable extends Gazes with TableInfo<$GazesTable, Gaze> {
     defaultValue: currentDateAndTime,
   );
   @override
-  List<GeneratedColumn> get $columns => [id, name, createdAt, updatedAt];
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    notes,
+    isCompact,
+    isDoublePrimary,
+    createdAt,
+    updatedAt,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -78,6 +125,27 @@ class $GazesTable extends Gazes with TableInfo<$GazesTable, Gaze> {
       );
     } else if (isInserting) {
       context.missing(_nameMeta);
+    }
+    if (data.containsKey('notes')) {
+      context.handle(
+        _notesMeta,
+        notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
+      );
+    }
+    if (data.containsKey('is_compact')) {
+      context.handle(
+        _isCompactMeta,
+        isCompact.isAcceptableOrUnknown(data['is_compact']!, _isCompactMeta),
+      );
+    }
+    if (data.containsKey('is_double_primary')) {
+      context.handle(
+        _isDoublePrimaryMeta,
+        isDoublePrimary.isAcceptableOrUnknown(
+          data['is_double_primary']!,
+          _isDoublePrimaryMeta,
+        ),
+      );
     }
     if (data.containsKey('created_at')) {
       context.handle(
@@ -108,6 +176,18 @@ class $GazesTable extends Gazes with TableInfo<$GazesTable, Gaze> {
         DriftSqlType.string,
         data['${effectivePrefix}name'],
       )!,
+      notes: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}notes'],
+      ),
+      isCompact: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_compact'],
+      )!,
+      isDoublePrimary: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_double_primary'],
+      )!,
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -128,11 +208,17 @@ class $GazesTable extends Gazes with TableInfo<$GazesTable, Gaze> {
 class Gaze extends DataClass implements Insertable<Gaze> {
   final int id;
   final String name;
+  final String? notes;
+  final bool isCompact;
+  final bool isDoublePrimary;
   final DateTime createdAt;
   final DateTime updatedAt;
   const Gaze({
     required this.id,
     required this.name,
+    this.notes,
+    required this.isCompact,
+    required this.isDoublePrimary,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -141,6 +227,11 @@ class Gaze extends DataClass implements Insertable<Gaze> {
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
     map['name'] = Variable<String>(name);
+    if (!nullToAbsent || notes != null) {
+      map['notes'] = Variable<String>(notes);
+    }
+    map['is_compact'] = Variable<bool>(isCompact);
+    map['is_double_primary'] = Variable<bool>(isDoublePrimary);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
@@ -150,6 +241,11 @@ class Gaze extends DataClass implements Insertable<Gaze> {
     return GazesCompanion(
       id: Value(id),
       name: Value(name),
+      notes: notes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(notes),
+      isCompact: Value(isCompact),
+      isDoublePrimary: Value(isDoublePrimary),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );
@@ -163,6 +259,9 @@ class Gaze extends DataClass implements Insertable<Gaze> {
     return Gaze(
       id: serializer.fromJson<int>(json['id']),
       name: serializer.fromJson<String>(json['name']),
+      notes: serializer.fromJson<String?>(json['notes']),
+      isCompact: serializer.fromJson<bool>(json['isCompact']),
+      isDoublePrimary: serializer.fromJson<bool>(json['isDoublePrimary']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
@@ -173,6 +272,9 @@ class Gaze extends DataClass implements Insertable<Gaze> {
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
       'name': serializer.toJson<String>(name),
+      'notes': serializer.toJson<String?>(notes),
+      'isCompact': serializer.toJson<bool>(isCompact),
+      'isDoublePrimary': serializer.toJson<bool>(isDoublePrimary),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
@@ -181,11 +283,17 @@ class Gaze extends DataClass implements Insertable<Gaze> {
   Gaze copyWith({
     int? id,
     String? name,
+    Value<String?> notes = const Value.absent(),
+    bool? isCompact,
+    bool? isDoublePrimary,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) => Gaze(
     id: id ?? this.id,
     name: name ?? this.name,
+    notes: notes.present ? notes.value : this.notes,
+    isCompact: isCompact ?? this.isCompact,
+    isDoublePrimary: isDoublePrimary ?? this.isDoublePrimary,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -193,6 +301,11 @@ class Gaze extends DataClass implements Insertable<Gaze> {
     return Gaze(
       id: data.id.present ? data.id.value : this.id,
       name: data.name.present ? data.name.value : this.name,
+      notes: data.notes.present ? data.notes.value : this.notes,
+      isCompact: data.isCompact.present ? data.isCompact.value : this.isCompact,
+      isDoublePrimary: data.isDoublePrimary.present
+          ? data.isDoublePrimary.value
+          : this.isDoublePrimary,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -203,6 +316,9 @@ class Gaze extends DataClass implements Insertable<Gaze> {
     return (StringBuffer('Gaze(')
           ..write('id: $id, ')
           ..write('name: $name, ')
+          ..write('notes: $notes, ')
+          ..write('isCompact: $isCompact, ')
+          ..write('isDoublePrimary: $isDoublePrimary, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -210,13 +326,24 @@ class Gaze extends DataClass implements Insertable<Gaze> {
   }
 
   @override
-  int get hashCode => Object.hash(id, name, createdAt, updatedAt);
+  int get hashCode => Object.hash(
+    id,
+    name,
+    notes,
+    isCompact,
+    isDoublePrimary,
+    createdAt,
+    updatedAt,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is Gaze &&
           other.id == this.id &&
           other.name == this.name &&
+          other.notes == this.notes &&
+          other.isCompact == this.isCompact &&
+          other.isDoublePrimary == this.isDoublePrimary &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -224,29 +351,44 @@ class Gaze extends DataClass implements Insertable<Gaze> {
 class GazesCompanion extends UpdateCompanion<Gaze> {
   final Value<int> id;
   final Value<String> name;
+  final Value<String?> notes;
+  final Value<bool> isCompact;
+  final Value<bool> isDoublePrimary;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   const GazesCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
+    this.notes = const Value.absent(),
+    this.isCompact = const Value.absent(),
+    this.isDoublePrimary = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
   });
   GazesCompanion.insert({
     this.id = const Value.absent(),
     required String name,
+    this.notes = const Value.absent(),
+    this.isCompact = const Value.absent(),
+    this.isDoublePrimary = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
   }) : name = Value(name);
   static Insertable<Gaze> custom({
     Expression<int>? id,
     Expression<String>? name,
+    Expression<String>? notes,
+    Expression<bool>? isCompact,
+    Expression<bool>? isDoublePrimary,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (name != null) 'name': name,
+      if (notes != null) 'notes': notes,
+      if (isCompact != null) 'is_compact': isCompact,
+      if (isDoublePrimary != null) 'is_double_primary': isDoublePrimary,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
     });
@@ -255,12 +397,18 @@ class GazesCompanion extends UpdateCompanion<Gaze> {
   GazesCompanion copyWith({
     Value<int>? id,
     Value<String>? name,
+    Value<String?>? notes,
+    Value<bool>? isCompact,
+    Value<bool>? isDoublePrimary,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
   }) {
     return GazesCompanion(
       id: id ?? this.id,
       name: name ?? this.name,
+      notes: notes ?? this.notes,
+      isCompact: isCompact ?? this.isCompact,
+      isDoublePrimary: isDoublePrimary ?? this.isDoublePrimary,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -274,6 +422,15 @@ class GazesCompanion extends UpdateCompanion<Gaze> {
     }
     if (name.present) {
       map['name'] = Variable<String>(name.value);
+    }
+    if (notes.present) {
+      map['notes'] = Variable<String>(notes.value);
+    }
+    if (isCompact.present) {
+      map['is_compact'] = Variable<bool>(isCompact.value);
+    }
+    if (isDoublePrimary.present) {
+      map['is_double_primary'] = Variable<bool>(isDoublePrimary.value);
     }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
@@ -289,6 +446,9 @@ class GazesCompanion extends UpdateCompanion<Gaze> {
     return (StringBuffer('GazesCompanion(')
           ..write('id: $id, ')
           ..write('name: $name, ')
+          ..write('notes: $notes, ')
+          ..write('isCompact: $isCompact, ')
+          ..write('isDoublePrimary: $isDoublePrimary, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -311,6 +471,9 @@ typedef $$GazesTableCreateCompanionBuilder =
     GazesCompanion Function({
       Value<int> id,
       required String name,
+      Value<String?> notes,
+      Value<bool> isCompact,
+      Value<bool> isDoublePrimary,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
     });
@@ -318,6 +481,9 @@ typedef $$GazesTableUpdateCompanionBuilder =
     GazesCompanion Function({
       Value<int> id,
       Value<String> name,
+      Value<String?> notes,
+      Value<bool> isCompact,
+      Value<bool> isDoublePrimary,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
     });
@@ -337,6 +503,21 @@ class $$GazesTableFilterComposer extends Composer<_$AppDatabase, $GazesTable> {
 
   ColumnFilters<String> get name => $composableBuilder(
     column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get notes => $composableBuilder(
+    column: $table.notes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isCompact => $composableBuilder(
+    column: $table.isCompact,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isDoublePrimary => $composableBuilder(
+    column: $table.isDoublePrimary,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -370,6 +551,21 @@ class $$GazesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get notes => $composableBuilder(
+    column: $table.notes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isCompact => $composableBuilder(
+    column: $table.isCompact,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isDoublePrimary => $composableBuilder(
+    column: $table.isDoublePrimary,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -395,6 +591,17 @@ class $$GazesTableAnnotationComposer
 
   GeneratedColumn<String> get name =>
       $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get notes =>
+      $composableBuilder(column: $table.notes, builder: (column) => column);
+
+  GeneratedColumn<bool> get isCompact =>
+      $composableBuilder(column: $table.isCompact, builder: (column) => column);
+
+  GeneratedColumn<bool> get isDoublePrimary => $composableBuilder(
+    column: $table.isDoublePrimary,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -433,11 +640,17 @@ class $$GazesTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 Value<String> name = const Value.absent(),
+                Value<String?> notes = const Value.absent(),
+                Value<bool> isCompact = const Value.absent(),
+                Value<bool> isDoublePrimary = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
               }) => GazesCompanion(
                 id: id,
                 name: name,
+                notes: notes,
+                isCompact: isCompact,
+                isDoublePrimary: isDoublePrimary,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
               ),
@@ -445,11 +658,17 @@ class $$GazesTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 required String name,
+                Value<String?> notes = const Value.absent(),
+                Value<bool> isCompact = const Value.absent(),
+                Value<bool> isDoublePrimary = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
               }) => GazesCompanion.insert(
                 id: id,
                 name: name,
+                notes: notes,
+                isCompact: isCompact,
+                isDoublePrimary: isDoublePrimary,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
               ),

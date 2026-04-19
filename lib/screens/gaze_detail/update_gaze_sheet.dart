@@ -1,50 +1,58 @@
-// Bottom sheet form for creating a new Gaze entry. Shows a
-// single patient-name field and a submit button. On submit it
-// writes to the DB, switches the button to a 'Created' state,
-// waits 500 ms, then closes the sheet.
+// Bottom sheet form for editing an existing Gaze entry.
+// Pre-fills name and notes from the supplied [gaze], writes
+// changes to the DB on submit, then closes via pop with the
+// updated [Gaze] row so the detail screen can refresh in place.
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:kensa_9gaze/app/theme.dart';
+import 'package:kensa_9gaze/db/app_database.dart';
 import 'package:kensa_9gaze/db/database_provider.dart';
 import 'package:kensa_9gaze/repositories/gazes_repository.dart';
-import 'package:kensa_9gaze/screens/gaze_detail/gaze_detail_screen.dart';
 import 'package:kensa_9gaze/widgets/animated_gaze_face.dart';
 
-/// Modal bottom sheet content for the "New Gaze" flow.
+/// Modal bottom sheet for updating an existing [Gaze].
 ///
-/// Owns the text field, submission logic, and the transient
-/// 'Created' confirmation state before auto-closing.
-class NewGazeSheet extends StatefulWidget {
-  const NewGazeSheet({super.key});
+/// On success it pops with the refreshed [Gaze] row so the
+/// caller can update its local state without an extra DB read.
+class UpdateGazeSheet extends StatefulWidget {
+  const UpdateGazeSheet({super.key, required this.gaze});
+
+  final Gaze gaze;
 
   @override
-  State<NewGazeSheet> createState() => _NewGazeSheetState();
+  State<UpdateGazeSheet> createState() => _UpdateGazeSheetState();
 }
 
-class _NewGazeSheetState extends State<NewGazeSheet> {
-  final _repo = GazesRepository(appDatabase);
-  final _nameController = TextEditingController();
-  final _notesController = TextEditingController();
-  final _focusNode = FocusNode();
+class _UpdateGazeSheetState extends State<UpdateGazeSheet> {
+  late final GazesRepository _repo;
+  late final TextEditingController _nameController;
+  late final TextEditingController _notesController;
 
-  /// True while the async insert is in-flight.
+  /// True while the async update is in-flight.
   bool _loading = false;
 
-  /// True after a successful insert, triggers the confirmation UI.
+  /// True after a successful update, triggers confirmation UI.
   bool _submitted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _repo = GazesRepository(appDatabase);
+    _nameController = TextEditingController(text: widget.gaze.name);
+    _notesController = TextEditingController(text: widget.gaze.notes ?? '');
+  }
 
   @override
   void dispose() {
     _nameController.dispose();
     _notesController.dispose();
-    _focusNode.dispose();
     super.dispose();
   }
 
-  /// Validates, inserts the gaze, shows confirmation, closes the
-  /// sheet, then pushes [GazeDetailScreen] with the new row.
+  /// Validates, writes to DB, shows confirmation, then pops
+  /// with the refreshed [Gaze] so the parent can update itself.
   Future<void> _handleSubmit() async {
     final name = _nameController.text.trim();
     if (name.isEmpty || _loading || _submitted) return;
@@ -52,11 +60,12 @@ class _NewGazeSheetState extends State<NewGazeSheet> {
     setState(() => _loading = true);
 
     final notes = _notesController.text.trim();
-    final newId = await _repo.create(
+    await _repo.updateGaze(
+      widget.gaze.id,
       name,
       notes: notes.isEmpty ? null : notes,
     );
-    final newGaze = await _repo.getById(newId);
+    final updated = await _repo.getById(widget.gaze.id);
 
     if (!mounted) return;
     setState(() {
@@ -64,24 +73,14 @@ class _NewGazeSheetState extends State<NewGazeSheet> {
       _submitted = true;
     });
 
-    // Brief confirmation pause before navigating away.
     await Future<void>.delayed(const Duration(milliseconds: 500));
 
-    if (!mounted) return;
-    // Pop the sheet first, then push the detail screen so the
-    // back button on the detail screen returns to home.
-    Navigator.of(context).pop();
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => GazeDetailScreen(gaze: newGaze),
-      ),
-    );
+    if (mounted) Navigator.of(context).pop(updated);
   }
 
   @override
   Widget build(BuildContext context) {
     final hintColor = kWhite.withValues(alpha: 0.5);
-    // Pad above keyboard so the field stays visible.
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
     return Padding(
@@ -107,7 +106,7 @@ class _NewGazeSheetState extends State<NewGazeSheet> {
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: Text(
-              'Gaze Details',
+              'Patient Info',
               style: GoogleFonts.bricolageGrotesque(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -125,11 +124,9 @@ class _NewGazeSheetState extends State<NewGazeSheet> {
             ),
             child: TextField(
               controller: _nameController,
-              focusNode: _focusNode,
               autofocus: true,
               enabled: !_submitted,
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) => _handleSubmit(),
+              textInputAction: TextInputAction.next,
               style: GoogleFonts.bricolageGrotesque(
                 color: kWhite,
                 fontSize: 16,
@@ -149,10 +146,7 @@ class _NewGazeSheetState extends State<NewGazeSheet> {
 
           // ── Notes textarea ───────────────────────────────────
           Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 24,
-              vertical: 8,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
             decoration: BoxDecoration(
               color: kDarkBlue,
               borderRadius: BorderRadius.circular(16),
@@ -211,7 +205,7 @@ class _NewGazeSheetState extends State<NewGazeSheet> {
     );
   }
 
-  /// Button content after successful insert.
+  /// Button content after a successful update.
   Widget _buildSubmittedContent() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.start,
@@ -225,7 +219,7 @@ class _NewGazeSheetState extends State<NewGazeSheet> {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Text(
-              'Created',
+              'Updated',
               style: GoogleFonts.bricolageGrotesque(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -249,7 +243,7 @@ class _NewGazeSheetState extends State<NewGazeSheet> {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Text(
-              'Create Gaze',
+              'Update Gaze',
               style: GoogleFonts.bricolageGrotesque(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,

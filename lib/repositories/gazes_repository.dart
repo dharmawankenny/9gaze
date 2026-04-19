@@ -17,10 +17,15 @@ class GazesRepository {
 
   final AppDatabase _db;
 
-  /// Inserts a new gaze with the given [name] and returns
-  /// its auto-generated row id.
-  Future<int> create(String name) {
-    return _db.into(_db.gazes).insert(GazesCompanion.insert(name: name));
+  /// Inserts a new gaze with the given [name] and optional
+  /// [notes], returning its auto-generated row id.
+  Future<int> create(String name, {String? notes}) {
+    return _db.into(_db.gazes).insert(
+          GazesCompanion.insert(
+            name: name,
+            notes: Value(notes),
+          ),
+        );
   }
 
   /// Fetches a single gaze by [id], or throws if not found.
@@ -43,15 +48,39 @@ class GazesRepository {
     )..orderBy([(g) => OrderingTerm.desc(g.updatedAt)])).watch();
   }
 
-  /// Updates the [name] of the gaze identified by [id] and
-  /// refreshes its `updatedAt` timestamp. Returns `true` if a
-  /// row was actually modified.
-  Future<bool> updateName(int id, String name) async {
+  /// Updates the [name] and optional [notes] of the gaze
+  /// identified by [id], refreshing `updatedAt`. Returns
+  /// `true` if a row was actually modified.
+  ///
+  /// Pass [notes] as `null` to clear the field, or omit the
+  /// argument to leave it unchanged by passing a sentinel —
+  /// use [updateName] if only the name needs updating.
+  Future<bool> updateGaze(int id, String name, {String? notes}) async {
     final affected =
         await (_db.update(_db.gazes)..where((g) => g.id.equals(id))).write(
-          GazesCompanion(name: Value(name), updatedAt: Value(DateTime.now())),
+          GazesCompanion(
+            name: Value(name),
+            notes: Value(notes),
+            updatedAt: Value(DateTime.now()),
+          ),
         );
     return affected > 0;
+  }
+
+  /// Updates [isCompact] and [isDoublePrimary] flags for the
+  /// gaze identified by [id]. Does not refresh [updatedAt]
+  /// because these are UI preferences, not patient data edits.
+  Future<void> updateFlags(
+    int id, {
+    required bool isCompact,
+    required bool isDoublePrimary,
+  }) {
+    return (_db.update(_db.gazes)..where((g) => g.id.equals(id))).write(
+      GazesCompanion(
+        isCompact: Value(isCompact),
+        isDoublePrimary: Value(isDoublePrimary),
+      ),
+    );
   }
 
   /// Deletes the gaze identified by [id] and returns the

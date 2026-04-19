@@ -32,7 +32,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -40,9 +40,15 @@ class AppDatabase extends _$AppDatabase {
       await m.createAll();
     },
     onUpgrade: (m, from, to) async {
-      // v1 is the initial schema, no upgrade paths yet.
-      // On schema bump, switch this to `stepByStep(...)` from
-      // the generated `schema_versions.dart` file.
+      // v2: add optional notes column to gazes.
+      if (from < 2) {
+        await m.addColumn(gazes, gazes.notes);
+      }
+      // v3: add compact-mode and dual-primary boolean flags.
+      if (from < 3) {
+        await m.addColumn(gazes, gazes.isCompact);
+        await m.addColumn(gazes, gazes.isDoublePrimary);
+      }
     },
   );
 }
