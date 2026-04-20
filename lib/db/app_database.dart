@@ -8,6 +8,7 @@ import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'package:kensa_9gaze/db/tables/gaze_slots.dart';
 import 'package:kensa_9gaze/db/tables/gazes.dart';
 
 part 'app_database.g.dart';
@@ -27,12 +28,12 @@ QueryExecutor _openConnection() {
 
 /// Top-level drift database. Owns all tables and controls
 /// schema migration between versions.
-@DriftDatabase(tables: [Gazes])
+@DriftDatabase(tables: [Gazes, GazeSlots])
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -48,6 +49,10 @@ class AppDatabase extends _$AppDatabase {
       if (from < 3) {
         await m.addColumn(gazes, gazes.isCompact);
         await m.addColumn(gazes, gazes.isDoublePrimary);
+      }
+      // v4: add gaze_slots table for per-direction photo slots.
+      if (from < 4) {
+        await m.createTable(gazeSlots);
       }
     },
   );

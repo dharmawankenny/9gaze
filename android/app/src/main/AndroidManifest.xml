@@ -1,4 +1,19 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- READ_MEDIA_IMAGES: required on Android 13+ (API 33+) for
+         image_picker to access photos without requesting the broader
+         READ_EXTERNAL_STORAGE permission. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <!-- READ_EXTERNAL_STORAGE: retained for Android 12 and below
+         compatibility with image_picker. The permission is not
+         requested at runtime on API 33+ devices. -->
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <!-- WRITE_EXTERNAL_STORAGE: required by gal to save the exported
+         collage to the device gallery on Android 9 and below. -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
     <application
         android:label="kensa_9gaze"
         android:name="${applicationName}"

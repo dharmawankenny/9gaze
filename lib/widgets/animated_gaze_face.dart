@@ -160,13 +160,7 @@ class _GazeFacePainter extends CustomPainter {
       final left = (originX + frame.dx) * s;
       final top = (_kEyeBaseY + frame.dy) * s;
       canvas.drawRRect(
-        RRect.fromLTRBR(
-          left,
-          top,
-          left + _kEyeW * s,
-          top + _kEyeH * s,
-          radius,
-        ),
+        RRect.fromLTRBR(left, top, left + _kEyeW * s, top + _kEyeH * s, radius),
         eyePaint,
       );
     }
@@ -216,8 +210,8 @@ class AnimatedGazeFace extends StatefulWidget {
     this.size = 32,
     this.faceColor = const Color(0xFFFAFAFA),
     this.eyeColor,
-  })  : _staticGaze = direction,
-        stepDuration = const Duration(seconds: 1);
+  }) : _staticGaze = direction,
+       stepDuration = const Duration(seconds: 1);
 
   /// Width and height of the widget in logical pixels.
   final double size;

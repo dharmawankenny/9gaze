@@ -8,9 +8,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:kensa_9gaze/app/theme.dart';
 import 'package:kensa_9gaze/db/app_database.dart';
 import 'package:kensa_9gaze/db/database_provider.dart';
+import 'package:kensa_9gaze/repositories/gaze_slots_repository.dart';
 import 'package:kensa_9gaze/repositories/gazes_repository.dart';
 import 'package:kensa_9gaze/screens/gaze_detail/update_gaze_sheet.dart';
 import 'package:kensa_9gaze/screens/gaze_detail/widgets/gaze_direction_grid.dart';
+import 'package:kensa_9gaze/services/gaze_exporter.dart';
 
 /// Detail view for a single [Gaze] entry.
 ///
@@ -28,6 +30,7 @@ class GazeDetailScreen extends StatefulWidget {
 
 class _GazeDetailScreenState extends State<GazeDetailScreen> {
   late final GazesRepository _repo;
+  late final GazeSlotsRepository _slotsRepo;
 
   /// Mutable local copy; updated when the sheet returns a new row.
   late Gaze _current;
@@ -38,10 +41,14 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
   /// Guard against concurrent flag writes.
   bool _flagsLoading = false;
 
+  /// Guard against concurrent export calls.
+  bool _exporting = false;
+
   @override
   void initState() {
     super.initState();
     _repo = GazesRepository(appDatabase);
+    _slotsRepo = GazeSlotsRepository(appDatabase);
     _current = widget.gaze;
     _compactMode = _current.isCompact;
     _dualPrimary = _current.isDoublePrimary;
@@ -70,12 +77,33 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
     if (mounted) setState(() => _flagsLoading = false);
   }
 
-  /// Saves the gaze chart to the device gallery.
+  /// Renders the 3×3 collage and saves it to the device gallery.
   ///
-  /// Implementation pending: will render the gaze direction grid
-  /// to an image and write it via the platform gallery API.
-  void _handleSaveToGallery() {
-    // TODO: implement render-to-image and gallery save.
+  /// Fetches all slot rows for the current gaze, delegates rendering
+  /// to [GazeExporter], and shows a SnackBar with the result.
+  Future<void> _handleSaveToGallery() async {
+    if (_exporting) return;
+    setState(() => _exporting = true);
+
+    try {
+      final slots = await _slotsRepo.getAllForGaze(_current.id);
+      final result = await GazeExporter.export(gaze: _current, slots: slots);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: result.success ? kAccentBlue : Colors.redAccent,
+          content: Text(
+            result.success
+                ? 'Saved to gallery!'
+                : 'Export failed: ${result.error}',
+            style: GoogleFonts.bricolageGrotesque(color: kWhite),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
   }
 
   /// Opens the update sheet and refreshes [_current] on save.
@@ -107,7 +135,7 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
             width: double.infinity,
             height: 56,
             child: ElevatedButton(
-              onPressed: _handleSaveToGallery,
+              onPressed: _exporting ? null : _handleSaveToGallery,
               style: ElevatedButton.styleFrom(
                 backgroundColor: kAccentBlue,
                 foregroundColor: kWhite,
@@ -120,15 +148,25 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(
-                    Icons.download_for_offline_outlined,
-                    color: kWhite,
-                    size: 24,
-                  ),
+                  if (_exporting)
+                    const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: kWhite,
+                      ),
+                    )
+                  else
+                    const Icon(
+                      Icons.download_for_offline_outlined,
+                      color: kWhite,
+                      size: 24,
+                    ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'Save to Gallery',
+                      _exporting ? 'Exporting…' : 'Save to Gallery',
                       style: GoogleFonts.bricolageGrotesque(
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
@@ -174,7 +212,11 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
             const SizedBox(height: 4),
 
             // ── 3×3 gaze direction grid ───────────────────────
-            const GazeDirectionGrid(),
+            GazeDirectionGrid(
+              gazeId: _current.id,
+              isDoublePrimary: _dualPrimary,
+              isCompact: _compactMode,
+            ),
 
             const SizedBox(height: 12),
 

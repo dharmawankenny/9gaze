@@ -4,10 +4,15 @@
 // can depend on plain [Gaze] data classes and simple futures
 // / streams. `updatedAt` is refreshed here (not via SQL
 // triggers) to keep the schema portable and migration-safe.
+//
+// Deleting a gaze also cleans up all associated slot image files
+// from the app documents directory before the DB cascade fires.
 
 import 'package:drift/drift.dart';
 
 import 'package:kensa_9gaze/db/app_database.dart';
+import 'package:kensa_9gaze/repositories/gaze_slots_repository.dart';
+import 'package:kensa_9gaze/services/image_storage.dart';
 
 /// Repository exposing high-level operations on the `gazes`
 /// table. Holds a reference to the shared [AppDatabase] and
@@ -20,12 +25,9 @@ class GazesRepository {
   /// Inserts a new gaze with the given [name] and optional
   /// [notes], returning its auto-generated row id.
   Future<int> create(String name, {String? notes}) {
-    return _db.into(_db.gazes).insert(
-          GazesCompanion.insert(
-            name: name,
-            notes: Value(notes),
-          ),
-        );
+    return _db
+        .into(_db.gazes)
+        .insert(GazesCompanion.insert(name: name, notes: Value(notes)));
   }
 
   /// Fetches a single gaze by [id], or throws if not found.
@@ -83,9 +85,22 @@ class GazesRepository {
     );
   }
 
-  /// Deletes the gaze identified by [id] and returns the
-  /// number of rows removed (0 or 1).
-  Future<int> delete(int id) {
+  /// Deletes the gaze identified by [id] and returns the number
+  /// of rows removed (0 or 1).
+  ///
+  /// Before removing the DB row, all associated slot image files
+  /// are deleted from the app sandbox. The drift `onDelete: cascade`
+  /// on [GazeSlots.gazeId] then removes the slot rows automatically.
+  Future<int> delete(int id) async {
+    // Clean up image files before the cascade removes slot rows.
+    final slotsRepo = GazeSlotsRepository(_db);
+    final slots = await slotsRepo.getAllForGazeOnce(id);
+    for (final slot in slots) {
+      await ImageStorage.deleteSlotFile(slot.imagePath);
+    }
+    // Also remove the directory in case any orphaned files remain.
+    await ImageStorage.deleteGazeDirectory(id);
+
     return (_db.delete(_db.gazes)..where((g) => g.id.equals(id))).go();
   }
 }

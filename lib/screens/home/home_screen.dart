@@ -71,9 +71,7 @@ class _HomeScreenState extends State<HomeScreen> {
   /// the query is empty.
   List<Gaze> _applyFilter(List<Gaze> all) {
     if (_query.isEmpty) return all;
-    return all
-        .where((g) => g.name.toLowerCase().contains(_query))
-        .toList();
+    return all.where((g) => g.name.toLowerCase().contains(_query)).toList();
   }
 
   @override
@@ -103,8 +101,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 Expanded(
                   child: GazeListView(
                     gazes: filtered,
-                    isLoading: snapshot.connectionState ==
-                        ConnectionState.waiting,
+                    isLoading:
+                        snapshot.connectionState == ConnectionState.waiting,
                     hasError: snapshot.hasError,
                     isFiltered: _query.isNotEmpty,
                     onDelete: (gaze) => _repo.delete(gaze.id),

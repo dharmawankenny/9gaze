@@ -2,6 +2,10 @@
 // via Dismissible, guarded by a confirmation dialog. The full
 // row area is tappable via InkWell to navigate to the detail
 // screen.
+//
+// The 96x96 thumbnail on the left renders a 3x3 micro-grid
+// showing each slot's captured photo (via GazeSlotImage) when
+// available, falling back to a faded static gaze-face icon.
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -9,8 +13,12 @@ import 'package:intl/intl.dart';
 
 import 'package:kensa_9gaze/app/theme.dart';
 import 'package:kensa_9gaze/db/app_database.dart';
+import 'package:kensa_9gaze/db/database_provider.dart';
+import 'package:kensa_9gaze/models/slot_key.dart';
+import 'package:kensa_9gaze/repositories/gaze_slots_repository.dart';
 import 'package:kensa_9gaze/screens/gaze_detail/gaze_detail_screen.dart';
 import 'package:kensa_9gaze/widgets/animated_gaze_face.dart';
+import 'package:kensa_9gaze/widgets/gaze_slot_image.dart';
 
 /// Formats a [DateTime] as "DD/MM/YYYY HH:mm".
 final _kDateFmt = DateFormat('dd/MM/yyyy HH:mm');
@@ -42,9 +50,7 @@ class GazeListItem extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF0A0A0A),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
           'Delete gaze?',
           style: GoogleFonts.bricolageGrotesque(
@@ -88,23 +94,7 @@ class GazeListItem extends StatelessWidget {
   /// Pushes [GazeDetailScreen] for this gaze entry.
   void _handleTap(BuildContext context) {
     Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => GazeDetailScreen(gaze: gaze),
-      ),
-    );
-  }
-
-  /// Builds a single 3×3 grid cell for the gaze direction mosaic.
-  Widget _gazeCell(GazeDirection direction) {
-    return SizedBox(
-      width: 32,
-      height: 32,
-      child: Center(
-        child: Opacity(
-          opacity: 0.1,
-          child: AnimatedGazeFace.static(direction: direction, size: 16),
-        ),
-      ),
+      MaterialPageRoute<void>(builder: (_) => GazeDetailScreen(gaze: gaze)),
     );
   }
 
@@ -146,34 +136,9 @@ class GazeListItem extends StatelessWidget {
                     color: kDarkBlue,
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          _gazeCell(GazeDirection.dextroelevation),
-                          _gazeCell(GazeDirection.elevation),
-                          _gazeCell(GazeDirection.levoelevation),
-                        ],
-                      ),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          _gazeCell(GazeDirection.dextroversion),
-                          _gazeCell(GazeDirection.primary),
-                          _gazeCell(GazeDirection.levoversion),
-                        ],
-                      ),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          _gazeCell(GazeDirection.dextrodepression),
-                          _gazeCell(GazeDirection.depression),
-                          _gazeCell(GazeDirection.levodepression),
-                        ],
-                      ),
-                    ],
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: _GazeThumbnailGrid(gazeId: gaze.id),
                   ),
                 ),
 
@@ -204,6 +169,109 @@ class GazeListItem extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Thumbnail grid ───────────────────────────────────────────────
+
+/// 3×3 micro-grid of 32×32 px slot thumbnails.
+///
+/// Streams slot data for [gazeId] so newly added photos appear
+/// in the list without a full rebuild. Falls back to the static
+/// gaze-face icon for unfilled slots.
+class _GazeThumbnailGrid extends StatefulWidget {
+  const _GazeThumbnailGrid({required this.gazeId});
+
+  final int gazeId;
+
+  @override
+  State<_GazeThumbnailGrid> createState() => _GazeThumbnailGridState();
+}
+
+class _GazeThumbnailGridState extends State<_GazeThumbnailGrid> {
+  late final Stream<List<GazeSlot>> _stream;
+
+  @override
+  void initState() {
+    super.initState();
+    _stream = GazeSlotsRepository(appDatabase).watchAllForGaze(widget.gazeId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<GazeSlot>>(
+      stream: _stream,
+      builder: (context, snapshot) {
+        final slots = snapshot.data ?? [];
+        final slotMap = {for (final s in slots) s.slotKey: s};
+
+        return Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _thumbnailRow(slotMap, [
+              SlotKey.dextroelevation,
+              SlotKey.elevation,
+              SlotKey.levoelevation,
+            ]),
+            _thumbnailRow(slotMap, [
+              SlotKey.dextroversion,
+              SlotKey.primary,
+              SlotKey.levoversion,
+            ]),
+            _thumbnailRow(slotMap, [
+              SlotKey.dextrodepression,
+              SlotKey.depression,
+              SlotKey.levodepression,
+            ]),
+          ],
+        );
+      },
+    );
+  }
+
+  Row _thumbnailRow(Map<String, GazeSlot> slotMap, List<SlotKey> keys) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: keys.map((k) {
+        final slot = slotMap[k.name];
+        return _ThumbnailCell(direction: kSlotKeyToDirection[k]!, slot: slot);
+      }).toList(),
+    );
+  }
+}
+
+/// A single 32×32 thumbnail cell: photo if slot filled, icon if not.
+class _ThumbnailCell extends StatelessWidget {
+  const _ThumbnailCell({required this.direction, this.slot});
+
+  final GazeDirection direction;
+  final GazeSlot? slot;
+
+  @override
+  Widget build(BuildContext context) {
+    const cellSize = 32.0;
+
+    if (slot != null) {
+      return SizedBox(
+        width: cellSize,
+        height: cellSize,
+        child: GazeSlotImage(
+          slot: slot!,
+          renderSize: const Size(cellSize, cellSize),
+        ),
+      );
+    }
+
+    return SizedBox(
+      width: cellSize,
+      height: cellSize,
+      child: Center(
+        child: Opacity(
+          opacity: 0.1,
+          child: AnimatedGazeFace.static(direction: direction, size: 16),
         ),
       ),
     );

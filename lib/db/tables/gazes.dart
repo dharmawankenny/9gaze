@@ -19,8 +19,7 @@ class Gazes extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get name => text()();
   TextColumn get notes => text().nullable()();
-  BoolColumn get isCompact =>
-      boolean().withDefault(const Constant(false))();
+  BoolColumn get isCompact => boolean().withDefault(const Constant(false))();
   BoolColumn get isDoublePrimary =>
       boolean().withDefault(const Constant(false))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();

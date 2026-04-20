@@ -52,10 +52,7 @@ class _NewGazeSheetState extends State<NewGazeSheet> {
     setState(() => _loading = true);
 
     final notes = _notesController.text.trim();
-    final newId = await _repo.create(
-      name,
-      notes: notes.isEmpty ? null : notes,
-    );
+    final newId = await _repo.create(name, notes: notes.isEmpty ? null : notes);
     final newGaze = await _repo.getById(newId);
 
     if (!mounted) return;
@@ -72,9 +69,7 @@ class _NewGazeSheetState extends State<NewGazeSheet> {
     // back button on the detail screen returns to home.
     Navigator.of(context).pop();
     Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => GazeDetailScreen(gaze: newGaze),
-      ),
+      MaterialPageRoute<void>(builder: (_) => GazeDetailScreen(gaze: newGaze)),
     );
   }
 
@@ -149,10 +144,7 @@ class _NewGazeSheetState extends State<NewGazeSheet> {
 
           // ── Notes textarea ───────────────────────────────────
           Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 24,
-              vertical: 8,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
             decoration: BoxDecoration(
               color: kDarkBlue,
               borderRadius: BorderRadius.circular(16),
