@@ -3,9 +3,12 @@
 // row area is tappable via InkWell to navigate to the detail
 // screen.
 //
-// The 96x96 thumbnail on the left renders a 3x3 micro-grid
-// showing each slot's captured photo (via GazeSlotImage) when
-// available, falling back to a faded static gaze-face icon.
+// The thumbnail on the left renders a 3x3 micro-grid reflecting
+// the gaze's layout flags:
+//   Standard    : 96×96 container, 32×32 cells.
+//   Compact     : 96×48 container, 32×16 cells.
+//   Dual-primary: centre cell splits top/bottom into two 32×16
+//                 halves inside the standard 96×96 container.
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -127,10 +130,11 @@ class GazeListItem extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.start,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // ── 3×3 gaze direction mosaic thumbnail ──────
+                // ── Gaze direction mosaic thumbnail ──────────
+                // Height shrinks to 48 in compact mode.
                 Container(
                   width: 96,
-                  height: 96,
+                  height: gaze.isCompact ? 48 : 96,
                   margin: const EdgeInsets.only(right: 16),
                   decoration: BoxDecoration(
                     color: kDarkBlue,
@@ -138,7 +142,7 @@ class GazeListItem extends StatelessWidget {
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(16),
-                    child: _GazeThumbnailGrid(gazeId: gaze.id),
+                    child: _GazeThumbnailGrid(gaze: gaze),
                   ),
                 ),
 
@@ -177,15 +181,16 @@ class GazeListItem extends StatelessWidget {
 
 // ── Thumbnail grid ───────────────────────────────────────────────
 
-/// 3×3 micro-grid of 32×32 px slot thumbnails.
+/// 3×3 micro-grid thumbnail that mirrors the gaze layout flags.
 ///
-/// Streams slot data for [gazeId] so newly added photos appear
-/// in the list without a full rebuild. Falls back to the static
-/// gaze-face icon for unfilled slots.
+/// Compact mode  → 32×16 cells (container is 96×48).
+/// Dual-primary  → centre cell splits top/bottom into two 32×16
+///                 halves; other cells stay 32×32.
+/// Standard      → 32×32 cells (container is 96×96).
 class _GazeThumbnailGrid extends StatefulWidget {
-  const _GazeThumbnailGrid({required this.gazeId});
+  const _GazeThumbnailGrid({required this.gaze});
 
-  final int gazeId;
+  final Gaze gaze;
 
   @override
   State<_GazeThumbnailGrid> createState() => _GazeThumbnailGridState();
@@ -197,31 +202,81 @@ class _GazeThumbnailGridState extends State<_GazeThumbnailGrid> {
   @override
   void initState() {
     super.initState();
-    _stream = GazeSlotsRepository(appDatabase).watchAllForGaze(widget.gazeId);
+    _stream = GazeSlotsRepository(appDatabase)
+        .watchAllForGaze(widget.gaze.id);
   }
 
   @override
   Widget build(BuildContext context) {
+    final isCompact = widget.gaze.isCompact;
+    final isDualPrimary = widget.gaze.isDoublePrimary;
+
+    // Cell width is always 32 px (container = 96 px wide, 3 cols).
+    const cellW = 32.0;
+    // Compact cells are half-height; standard cells are square.
+    final cellH = isCompact ? 16.0 : 32.0;
+
     return StreamBuilder<List<GazeSlot>>(
       stream: _stream,
       builder: (context, snapshot) {
         final slots = snapshot.data ?? [];
         final slotMap = {for (final s in slots) s.slotKey: s};
 
+        /// Builds one row of three cells, substituting the dual-
+        /// primary split widget for [SlotKey.primary] when needed.
+        Row buildRow(List<SlotKey> keys) {
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: keys.map((k) {
+              if (k == SlotKey.primary && isDualPrimary) {
+                // Top/bottom split: two 32×(cellH/2) stacked cells.
+                final halfH = cellH / 2;
+                return SizedBox(
+                  width: cellW,
+                  height: cellH,
+                  child: Column(
+                    children: [
+                      _ThumbnailCell(
+                        direction: GazeDirection.primary,
+                        slot: slotMap[SlotKey.primary.name],
+                        width: cellW,
+                        height: halfH,
+                      ),
+                      _ThumbnailCell(
+                        direction: GazeDirection.primary,
+                        slot: slotMap[SlotKey.primarySecondary.name],
+                        width: cellW,
+                        height: halfH,
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              return _ThumbnailCell(
+                direction: kSlotKeyToDirection[k]!,
+                slot: slotMap[k.name],
+                width: cellW,
+                height: cellH,
+              );
+            }).toList(),
+          );
+        }
+
         return Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _thumbnailRow(slotMap, [
+            buildRow([
               SlotKey.dextroelevation,
               SlotKey.elevation,
               SlotKey.levoelevation,
             ]),
-            _thumbnailRow(slotMap, [
+            buildRow([
               SlotKey.dextroversion,
               SlotKey.primary,
               SlotKey.levoversion,
             ]),
-            _thumbnailRow(slotMap, [
+            buildRow([
               SlotKey.dextrodepression,
               SlotKey.depression,
               SlotKey.levodepression,
@@ -231,47 +286,45 @@ class _GazeThumbnailGridState extends State<_GazeThumbnailGrid> {
       },
     );
   }
-
-  Row _thumbnailRow(Map<String, GazeSlot> slotMap, List<SlotKey> keys) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: keys.map((k) {
-        final slot = slotMap[k.name];
-        return _ThumbnailCell(direction: kSlotKeyToDirection[k]!, slot: slot);
-      }).toList(),
-    );
-  }
 }
 
-/// A single 32×32 thumbnail cell: photo if slot filled, icon if not.
+/// A single thumbnail cell: photo if slot filled, icon if not.
 class _ThumbnailCell extends StatelessWidget {
-  const _ThumbnailCell({required this.direction, this.slot});
+  const _ThumbnailCell({
+    required this.direction,
+    required this.width,
+    required this.height,
+    this.slot,
+  });
 
   final GazeDirection direction;
+  final double width;
+  final double height;
   final GazeSlot? slot;
 
   @override
   Widget build(BuildContext context) {
-    const cellSize = 32.0;
-
     if (slot != null) {
       return SizedBox(
-        width: cellSize,
-        height: cellSize,
+        width: width,
+        height: height,
         child: GazeSlotImage(
           slot: slot!,
-          renderSize: const Size(cellSize, cellSize),
+          renderSize: Size(width, height),
         ),
       );
     }
 
     return SizedBox(
-      width: cellSize,
-      height: cellSize,
+      width: width,
+      height: height,
       child: Center(
         child: Opacity(
           opacity: 0.1,
-          child: AnimatedGazeFace.static(direction: direction, size: 16),
+          child: AnimatedGazeFace.static(
+            direction: direction,
+            size: height * 0.5,
+          ),
         ),
       ),
     );

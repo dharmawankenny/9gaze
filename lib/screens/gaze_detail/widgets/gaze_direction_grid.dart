@@ -6,8 +6,8 @@
 // editor directly if the slot is already filled.
 //
 // The centre cell has special dual-primary behaviour when
-// [isDoublePrimary] is true: it renders as two equal halves
-// side-by-side — left for [SlotKey.primary], right for
+// [isDoublePrimary] is true: it splits top-to-bottom into two equal
+// compact halves — top for [SlotKey.primary], bottom for
 // [SlotKey.primarySecondary]. Each half is independently tappable.
 
 import 'dart:io';
@@ -98,10 +98,7 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
     }
   }
 
-  Future<void> _pickAndCreateSlot(
-    BuildContext context,
-    SlotKey key,
-  ) async {
+  Future<void> _pickAndCreateSlot(BuildContext context, SlotKey key) async {
     // Capture navigator before async gaps.
     final nav = Navigator.of(context);
 
@@ -212,24 +209,23 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
           return LayoutBuilder(
             builder: (context, constraints) {
               final cellSize = constraints.maxWidth / 3;
-              final cellHeight =
-                  widget.isCompact ? cellSize / 2 : cellSize;
+              final cellHeight = widget.isCompact ? cellSize / 2 : cellSize;
 
               Widget buildCell(SlotKey key) {
                 final existing = slotMap[key.name];
 
-                if (key == SlotKey.primary &&
-                    widget.isDoublePrimary) {
+                if (key == SlotKey.primary && widget.isDoublePrimary) {
                   return _DualPrimaryCell(
                     size: cellSize,
                     height: cellHeight,
                     primarySlot: slotMap[SlotKey.primary.name],
-                    secondarySlot:
-                        slotMap[SlotKey.primarySecondary.name],
-                    pickingPrimary: _pickingInProgress
-                        .contains(SlotKey.primary),
-                    pickingSecondary: _pickingInProgress
-                        .contains(SlotKey.primarySecondary),
+                    secondarySlot: slotMap[SlotKey.primarySecondary.name],
+                    pickingPrimary: _pickingInProgress.contains(
+                      SlotKey.primary,
+                    ),
+                    pickingSecondary: _pickingInProgress.contains(
+                      SlotKey.primarySecondary,
+                    ),
                     onTapPrimary: () => _handleCellTap(
                       context,
                       SlotKey.primary,
@@ -251,16 +247,11 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
                   height: cellHeight,
                   slot: existing,
                   isPicking: _pickingInProgress.contains(key),
-                  onTap: () =>
-                      _handleCellTap(context, key, existing),
+                  onTap: () => _handleCellTap(context, key, existing),
                 );
               }
 
-              return Wrap(
-                children: kGridSlotOrder
-                    .map(buildCell)
-                    .toList(),
-              );
+              return Wrap(children: kGridSlotOrder.map(buildCell).toList());
             },
           );
         },
@@ -336,6 +327,10 @@ class _GazeCell extends StatelessWidget {
 
 // ── Dual-primary centre cell ─────────────────────────────────────
 
+/// Centre cell that splits top/bottom when [isDoublePrimary] is on.
+///
+/// Each half is [size] wide and [size/2] tall — identical to a
+/// compact-mode cell — and independently tappable.
 class _DualPrimaryCell extends StatelessWidget {
   const _DualPrimaryCell({
     required this.size,
@@ -349,6 +344,8 @@ class _DualPrimaryCell extends StatelessWidget {
   });
 
   final double size;
+
+  /// Full cell height (= [size] for non-compact rows).
   final double height;
   final GazeSlot? primarySlot;
   final GazeSlot? secondarySlot;
@@ -359,18 +356,21 @@ class _DualPrimaryCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final halfW = size / 2;
+    // Each half is half the cell height — equivalent to a compact
+    // cell regardless of the outer isCompact flag.
+    final halfH = size / 2;
 
     return SizedBox(
       width: size,
-      height: height,
-      child: Row(
+      height: size,
+      child: Column(
         children: [
+          // ── Top half: primary ───────────────────────────────
           GestureDetector(
             onTap: pickingPrimary ? null : onTapPrimary,
             child: SizedBox(
-              width: halfW,
-              height: height,
+              width: size,
+              height: halfH,
               child: ColoredBox(
                 color: kDarkBlue.withValues(alpha: 0.5),
                 child: pickingPrimary
@@ -387,25 +387,25 @@ class _DualPrimaryCell extends StatelessWidget {
                     : primarySlot != null
                     ? _FilledCell(
                         slot: primarySlot!,
-                        size: halfW,
-                        height: height,
+                        size: size,
+                        height: halfH,
                         label: 'Primary',
                       )
                     : _EmptyCell(
                         direction: GazeDirection.primary,
-                        size: halfW,
-                        height: height,
+                        size: size,
+                        height: halfH,
                         label: 'Primary',
                       ),
               ),
             ),
           ),
-          Container(width: 1, height: height, color: kBlack),
+          // ── Bottom half: primary secondary ──────────────────
           GestureDetector(
             onTap: pickingSecondary ? null : onTapSecondary,
             child: SizedBox(
-              width: halfW - 1,
-              height: height,
+              width: size,
+              height: halfH,
               child: ColoredBox(
                 color: kDarkBlue.withValues(alpha: 0.5),
                 child: pickingSecondary
@@ -422,14 +422,14 @@ class _DualPrimaryCell extends StatelessWidget {
                     : secondarySlot != null
                     ? _FilledCell(
                         slot: secondarySlot!,
-                        size: halfW - 1,
-                        height: height,
+                        size: size,
+                        height: halfH - 1,
                         label: 'Primary 2',
                       )
                     : _EmptyCell(
                         direction: GazeDirection.primary,
-                        size: halfW - 1,
-                        height: height,
+                        size: size,
+                        height: halfH - 1,
                         label: 'Primary 2',
                       ),
               ),
@@ -444,6 +444,9 @@ class _DualPrimaryCell extends StatelessWidget {
 // ── Cell content helpers ─────────────────────────────────────────
 
 /// Cell content when the slot has a captured photo.
+///
+/// No label overlay — the image speaks for itself. Labels are
+/// only shown in the empty-state placeholder.
 class _FilledCell extends StatelessWidget {
   const _FilledCell({
     required this.slot,
@@ -455,35 +458,13 @@ class _FilledCell extends StatelessWidget {
   final GazeSlot slot;
   final double size;
   final double height;
+
+  /// Kept for API symmetry with [_EmptyCell]; not rendered.
   final String label;
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        GazeSlotImage(
-          slot: slot,
-          renderSize: Size(size, height),
-        ),
-        Positioned(
-          bottom: 6,
-          left: 0,
-          right: 0,
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            style: GoogleFonts.bricolageGrotesque(
-              fontSize: 7,
-              color: kWhite.withValues(alpha: 0.7),
-              shadows: [
-                const Shadow(blurRadius: 4, color: Colors.black54),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
+    return GazeSlotImage(slot: slot, renderSize: Size(size, height));
   }
 }
 
@@ -548,22 +529,14 @@ class _EmptyCell extends StatelessWidget {
 /// Extracts (width, height) from JPEG or PNG raw bytes by reading
 /// only the image header. Returns null if format is unrecognised.
 (int, int)? _parseImageDimensions(List<int> bytes) {
-  if (bytes.length > 4 &&
-      bytes[0] == 0xFF &&
-      bytes[1] == 0xD8) {
+  if (bytes.length > 4 && bytes[0] == 0xFF && bytes[1] == 0xD8) {
     return _parseJpegDimensions(bytes);
   }
-  if (bytes.length > 24 &&
-      bytes[0] == 0x89 &&
-      bytes[1] == 0x50) {
-    final w = (bytes[16] << 24) |
-        (bytes[17] << 16) |
-        (bytes[18] << 8) |
-        bytes[19];
-    final h = (bytes[20] << 24) |
-        (bytes[21] << 16) |
-        (bytes[22] << 8) |
-        bytes[23];
+  if (bytes.length > 24 && bytes[0] == 0x89 && bytes[1] == 0x50) {
+    final w =
+        (bytes[16] << 24) | (bytes[17] << 16) | (bytes[18] << 8) | bytes[19];
+    final h =
+        (bytes[20] << 24) | (bytes[21] << 16) | (bytes[22] << 8) | bytes[23];
     return (w, h);
   }
   return null;
@@ -576,9 +549,7 @@ class _EmptyCell extends StatelessWidget {
     if (bytes[i] != 0xFF) break;
     final marker = bytes[i + 1];
     final segLen = (bytes[i + 2] << 8) | bytes[i + 3];
-    if (marker == 0xC0 ||
-        marker == 0xC1 ||
-        marker == 0xC2) {
+    if (marker == 0xC0 || marker == 0xC1 || marker == 0xC2) {
       final h = (bytes[i + 5] << 8) | bytes[i + 6];
       final w = (bytes[i + 7] << 8) | bytes[i + 8];
       return (w, h);

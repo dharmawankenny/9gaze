@@ -56,11 +56,26 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
 
   /// Persists both flag values to the DB, updating local state
   /// optimistically so the UI responds instantly.
+  ///
+  /// The two flags are mutually exclusive: enabling one forces the
+  /// other off. This is enforced here so both the DB write and the
+  /// local state stay consistent regardless of which toggle fired.
   Future<void> _handleFlagChanged({bool? compact, bool? doublePrimary}) async {
     if (_flagsLoading) return;
 
-    final nextCompact = compact ?? _compactMode;
-    final nextDouble = doublePrimary ?? _dualPrimary;
+    // Mutual exclusion: turning one on always turns the other off.
+    late final bool nextCompact;
+    late final bool nextDouble;
+    if (compact != null) {
+      nextCompact = compact;
+      nextDouble = compact ? false : _dualPrimary;
+    } else if (doublePrimary != null) {
+      nextDouble = doublePrimary;
+      nextCompact = doublePrimary ? false : _compactMode;
+    } else {
+      nextCompact = _compactMode;
+      nextDouble = _dualPrimary;
+    }
 
     setState(() {
       _compactMode = nextCompact;

@@ -10,9 +10,10 @@
 // exported collage looks identical to what the user sees on screen.
 //
 // Export layout:
-//   Standard  : 3×3 grid, each cell 360×360 px.
-//   Compact   : 3×3 grid, each cell 360×180 px (1080×540 total).
-//   Dual-primary (centre cell): two 180×cellH halves side-by-side.
+//   Standard    : 3×3 grid, each cell 360×360 px.
+//   Compact     : 3×3 grid, each cell 360×180 px (1080×540 total).
+//   Dual-primary: centre cell splits top/bottom into two 360×(cellH/2)
+//                 halves — primary on top, primarySecondary below.
 
 import 'dart:io';
 import 'dart:math' as math;
@@ -113,9 +114,11 @@ class GazeExporter {
       final x = col * cellW;
       final y = row * cellH;
 
-      // Centre cell: dual-primary splits into two halves.
+      // Centre cell: dual-primary splits top/bottom into two halves.
       if (key == SlotKey.primary && isDualPrimary) {
-        final halfW = cellW ~/ 2;
+        // Each half is the full cell width but half the cell height.
+        // Standard mode: 360×180 px each. Compact: 360×90 px each.
+        final halfH = cellH ~/ 2;
 
         await _drawSlotCell(
           canvas: canvas,
@@ -123,18 +126,18 @@ class GazeExporter {
           cellRect: Rect.fromLTWH(
             x.toDouble(),
             y.toDouble(),
-            halfW.toDouble(),
-            cellH.toDouble(),
+            cellW.toDouble(),
+            halfH.toDouble(),
           ),
         );
         await _drawSlotCell(
           canvas: canvas,
           slot: slotMap[SlotKey.primarySecondary.name],
           cellRect: Rect.fromLTWH(
-            (x + halfW).toDouble(),
-            y.toDouble(),
-            halfW.toDouble(),
-            cellH.toDouble(),
+            x.toDouble(),
+            (y + halfH).toDouble(),
+            cellW.toDouble(),
+            halfH.toDouble(),
           ),
         );
       } else {
