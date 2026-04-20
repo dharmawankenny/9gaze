@@ -15,7 +15,7 @@
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
     <application
-        android:label="kensa_9gaze"
+        android:label="9Gaze"
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon">
         <activity
