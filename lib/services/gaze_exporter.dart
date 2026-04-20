@@ -54,9 +54,14 @@ class GazeExporter {
   static Future<ExportResult> export({
     required Gaze gaze,
     required List<GazeSlot> slots,
+    List<GazeTextOverlay> overlays = const [],
   }) async {
     try {
-      final bytes = await _renderCollage(gaze: gaze, slots: slots);
+      final bytes = await _renderCollage(
+        gaze: gaze,
+        slots: slots,
+        overlays: overlays,
+      );
       final filename =
           '9gaze_${gaze.name.replaceAll(RegExp(r'[^\w]'), '_')}'
           '_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.jpg';
@@ -83,6 +88,7 @@ class GazeExporter {
   static Future<Uint8List> _renderCollage({
     required Gaze gaze,
     required List<GazeSlot> slots,
+    required List<GazeTextOverlay> overlays,
   }) async {
     final isCompact = gaze.isCompact;
     final isDualPrimary = gaze.isDoublePrimary;
@@ -152,6 +158,16 @@ class GazeExporter {
           ),
         );
       }
+    }
+
+    // Draw text overlays on top of grid images.
+    for (final overlay in overlays) {
+      _drawTextOverlay(
+        canvas: canvas,
+        overlay: overlay,
+        canvasW: canvasW.toDouble(),
+        canvasH: canvasH.toDouble(),
+      );
     }
 
     // Finalise the picture.
@@ -227,6 +243,43 @@ class GazeExporter {
 
     canvas.restore();
     srcImage.dispose();
+  }
+
+  static void _drawTextOverlay({
+    required Canvas canvas,
+    required GazeTextOverlay overlay,
+    required double canvasW,
+    required double canvasH,
+  }) {
+    final x = (overlay.x * canvasW).clamp(0.0, canvasW);
+    final y = (overlay.y * canvasH).clamp(0.0, canvasH);
+    // Match on-screen sizing model: font scales with grid width.
+    final fontSize = ((canvasW * 0.04) * overlay.scale).clamp(8.0, 220.0);
+
+    final builder = ui.ParagraphBuilder(
+      ui.ParagraphStyle(
+        textAlign: TextAlign.left,
+        fontSize: fontSize,
+        maxLines: 1,
+      ),
+    )..pushStyle(
+        ui.TextStyle(
+          color: ui.Color(overlay.textColor),
+          fontWeight: FontWeight.w600,
+        ),
+      );
+    builder.addText(overlay.content);
+    final paragraph = builder.build()
+      ..layout(const ui.ParagraphConstraints(width: 2000));
+
+    final bg = overlay.bgColor == null
+        ? null
+        : (Paint()..color = ui.Color(overlay.bgColor!));
+    if (bg != null) {
+      final rect = Rect.fromLTWH(x, y, paragraph.maxIntrinsicWidth + 12, paragraph.height + 6);
+      canvas.drawRect(rect, bg);
+    }
+    canvas.drawParagraph(paragraph, Offset(x + 6, y + 3));
   }
 }
 

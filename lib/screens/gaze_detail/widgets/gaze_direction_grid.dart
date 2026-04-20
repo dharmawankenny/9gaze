@@ -47,6 +47,7 @@ class GazeDirectionGrid extends StatefulWidget {
     this.onDoublePrimaryEnabled,
     this.onSaveEdits,
     this.onCommitEditsBound,
+    this.overlayBuilder,
   });
 
   /// ID of the parent [Gaze] row.
@@ -74,6 +75,11 @@ class GazeDirectionGrid extends StatefulWidget {
   /// Called once during initState with a callback that the parent
   /// can invoke to trigger [commitEdits] from outside the widget.
   final void Function(VoidCallback trigger)? onCommitEditsBound;
+
+  /// Optional top overlay layer rendered above all slot cells.
+  ///
+  /// Receives grid width and total grid height.
+  final Widget Function(double gridWidth, double gridHeight)? overlayBuilder;
 
   @override
   State<GazeDirectionGrid> createState() => _GazeDirectionGridState();
@@ -444,8 +450,27 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
                 );
               }
 
-              return Wrap(
+              final gridHeight = cellHeight * 3;
+              final gridContent = Wrap(
                 children: kGridSlotOrder.map(buildCell).toList(),
+              );
+              if (widget.overlayBuilder == null) {
+                return gridContent;
+              }
+              return SizedBox(
+                width: constraints.maxWidth,
+                height: gridHeight,
+                child: Stack(
+                  children: [
+                    Positioned.fill(child: gridContent),
+                    Positioned.fill(
+                      child: widget.overlayBuilder!(
+                        constraints.maxWidth,
+                        gridHeight,
+                      ),
+                    ),
+                  ],
+                ),
               );
             },
           );

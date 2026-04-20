@@ -3,11 +3,13 @@
 // allows editing and writes changes back to the DB.
 
 import 'package:flutter/material.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:kensa_9gaze/app/theme.dart';
 import 'package:kensa_9gaze/db/app_database.dart';
 import 'package:kensa_9gaze/db/database_provider.dart';
+import 'package:kensa_9gaze/repositories/gaze_text_overlays_repository.dart';
 import 'package:kensa_9gaze/repositories/gaze_slots_repository.dart';
 import 'package:kensa_9gaze/repositories/gazes_repository.dart';
 import 'package:kensa_9gaze/screens/gaze_detail/update_gaze_sheet.dart';
@@ -31,6 +33,7 @@ class GazeDetailScreen extends StatefulWidget {
 class _GazeDetailScreenState extends State<GazeDetailScreen> {
   late final GazesRepository _repo;
   late final GazeSlotsRepository _slotsRepo;
+  late final GazeTextOverlaysRepository _overlayRepo;
 
   /// Mutable local copy; updated when the sheet returns a new row.
   late Gaze _current;
@@ -43,6 +46,7 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
 
   /// Guard against concurrent export calls.
   bool _exporting = false;
+  bool _exportSuccessFlash = false;
 
   /// Whether the grid is in drag-reorder edit mode.
   bool _isEditMode = false;
@@ -53,11 +57,21 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
   /// Callback set by the grid to let this screen trigger commitEdits.
   VoidCallback? _commitEdits;
 
+  /// Slot key updates captured from grid commit.
+  Map<int, String> _pendingSlotChanges = {};
+
+  /// Local overlay drafts used only in edit mode.
+  List<_OverlayDraft> _overlayDrafts = [];
+  int _overlayLocalIdSeed = -1;
+  int? _selectedOverlayId;
+  double _scaleStart = 1.0;
+
   @override
   void initState() {
     super.initState();
     _repo = GazesRepository(appDatabase);
     _slotsRepo = GazeSlotsRepository(appDatabase);
+    _overlayRepo = GazeTextOverlaysRepository(appDatabase);
     _current = widget.gaze;
     _compactMode = _current.isCompact;
     _dualPrimary = _current.isDoublePrimary;
@@ -107,24 +121,38 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
   /// to [GazeExporter], and shows a SnackBar with the result.
   Future<void> _handleSaveToGallery() async {
     if (_exporting) return;
-    setState(() => _exporting = true);
+    setState(() {
+      _exporting = true;
+      _exportSuccessFlash = false;
+    });
 
     try {
       final slots = await _slotsRepo.getAllForGaze(_current.id);
-      final result = await GazeExporter.export(gaze: _current, slots: slots);
+      final overlays = await _overlayRepo.getForGaze(_current.id);
+      final result = await GazeExporter.export(
+        gaze: _current,
+        slots: slots,
+        overlays: overlays,
+      );
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: result.success ? kAccentBlue : Colors.redAccent,
-          content: Text(
-            result.success
-                ? 'Saved to gallery!'
-                : 'Export failed: ${result.error}',
-            style: GoogleFonts.bricolageGrotesque(color: kWhite),
+      if (result.success) {
+        setState(() => _exportSuccessFlash = true);
+        Future<void>.delayed(const Duration(seconds: 2), () {
+          if (!mounted) return;
+          setState(() => _exportSuccessFlash = false);
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.redAccent,
+            content: Text(
+              'Export failed: ${result.error}',
+              style: GoogleFonts.bricolageGrotesque(color: kWhite),
+            ),
           ),
-        ),
-      );
+        );
+      }
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
@@ -132,23 +160,80 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
 
   /// Enters or exits edit mode. On exit without save, the grid
   /// discards pending changes automatically via [isEditMode] flip.
-  void _handleToggleEditMode() {
+  Future<void> _handleToggleEditMode() async {
     if (_savingEdits) return;
-    setState(() => _isEditMode = !_isEditMode);
+    if (_isEditMode) {
+      setState(() {
+        _isEditMode = false;
+        _overlayDrafts = [];
+        _selectedOverlayId = null;
+        _pendingSlotChanges = {};
+      });
+      return;
+    }
+    final rows = await _overlayRepo.getForGaze(_current.id);
+    if (!mounted) return;
+    setState(() {
+      _isEditMode = true;
+      _overlayDrafts = rows
+          .map(
+            (r) => _OverlayDraft(
+              localId: r.id,
+              text: r.content,
+              x: r.x,
+              y: r.y,
+              scale: r.scale,
+              textColor: r.textColor,
+              bgColor: r.bgColor,
+              zIndex: r.zIndex,
+            ),
+          )
+          .toList();
+      _selectedOverlayId = _overlayDrafts.isEmpty
+          ? null
+          : _overlayDrafts.last.localId;
+      _pendingSlotChanges = {};
+    });
   }
 
-  /// Called by the grid via [GazeDirectionGrid.onSaveEdits] with
-  /// the map of changed slot ids → target key names.
-  Future<void> _handleSaveEdits(Map<int, String> changes) async {
+  void _captureSlotEditChanges(Map<int, String> changes) {
+    _pendingSlotChanges = changes;
+  }
+
+  Future<void> _handleSaveAllEdits() async {
     if (_savingEdits) return;
+    _commitEdits?.call();
     setState(() => _savingEdits = true);
     try {
-      await _slotsRepo.reorderSlots(changes);
+      if (_pendingSlotChanges.isNotEmpty) {
+        await _slotsRepo.reorderSlots(_pendingSlotChanges);
+      }
+      final overlayRows = _overlayDrafts
+          .asMap()
+          .entries
+          .map(
+            (entry) => GazeTextOverlaysCompanion.insert(
+              gazeId: _current.id,
+              content: Value(entry.value.text),
+              x: Value(entry.value.x),
+              y: Value(entry.value.y),
+              scale: Value(entry.value.scale),
+              textColor: Value(entry.value.textColor),
+              bgColor: Value(entry.value.bgColor),
+              zIndex: Value(entry.key),
+              updatedAt: Value(DateTime.now()),
+            ),
+          )
+          .toList();
+      await _overlayRepo.replaceAllForGaze(_current.id, overlayRows);
     } finally {
       if (mounted) {
         setState(() {
           _savingEdits = false;
           _isEditMode = false;
+          _overlayDrafts = [];
+          _selectedOverlayId = null;
+          _pendingSlotChanges = {};
         });
       }
     }
@@ -171,65 +256,334 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 16,
-          ).copyWith(bottom: 16),
-          child: SizedBox(
-            width: double.infinity,
-            height: 56,
-            child: ElevatedButton(
-              onPressed: (_exporting || _isEditMode)
-                  ? null
-                  : _handleSaveToGallery,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: kAccentBlue,
-                foregroundColor: kWhite,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(50),
+  void _handleAddOverlay() {
+    if (!_isEditMode) return;
+    final draft = _OverlayDraft(
+      localId: _overlayLocalIdSeed--,
+      text: 'Text',
+      x: 0.5,
+      y: 0.5,
+      scale: 1.0,
+      textColor: 0xFFFFFFFF,
+      bgColor: 0xAA000000,
+      zIndex: _overlayDrafts.length,
+    );
+    setState(() {
+      _overlayDrafts = [..._overlayDrafts, draft];
+      _selectedOverlayId = draft.localId;
+    });
+  }
+
+  void _handleDeleteOverlay() {
+    final id = _selectedOverlayId;
+    if (id == null) return;
+    setState(() {
+      _overlayDrafts = _overlayDrafts.where((o) => o.localId != id).toList();
+      _selectedOverlayId = _overlayDrafts.isEmpty
+          ? null
+          : _overlayDrafts.last.localId;
+    });
+  }
+
+  _OverlayDraft? get _selectedOverlay {
+    final id = _selectedOverlayId;
+    if (id == null) return null;
+    for (final ov in _overlayDrafts) {
+      if (ov.localId == id) return ov;
+    }
+    return null;
+  }
+
+  Widget _buildOverlayLayer(double gridWidth, double gridHeight) {
+    final overlays = _isEditMode ? _overlayDrafts : null;
+    if (_isEditMode) {
+      return Stack(
+        children: overlays!.map((ov) {
+          final isSelected = ov.localId == _selectedOverlayId;
+          final left = (ov.x * gridWidth).clamp(0.0, gridWidth - 24);
+          final top = (ov.y * gridHeight).clamp(0.0, gridHeight - 24);
+          // Keep text scale proportional to grid width so export can
+          // mirror it 1:1 by using the same width ratio.
+          final fontSize = (gridWidth * 0.04) * ov.scale;
+          return Positioned(
+            left: left,
+            top: top,
+            child: GestureDetector(
+              onTap: () => setState(() => _selectedOverlayId = ov.localId),
+              onScaleStart: (_) => _scaleStart = ov.scale,
+              onScaleUpdate: (d) {
+                setState(() {
+                  ov.scale = (_scaleStart * d.scale).clamp(0.5, 4.0);
+                  ov.x = (ov.x + d.focalPointDelta.dx / gridWidth).clamp(
+                    0.0,
+                    1.0,
+                  );
+                  ov.y = (ov.y + d.focalPointDelta.dy / gridHeight).clamp(
+                    0.0,
+                    1.0,
+                  );
+                });
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                decoration: BoxDecoration(
+                  color: ov.bgColor != null
+                      ? Color(ov.bgColor!)
+                      : Colors.transparent,
+                  border: isSelected
+                      ? Border.all(color: kAccentBlue, width: 1.5)
+                      : null,
                 ),
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Text(
+                  ov.text,
+                  style: GoogleFonts.bricolageGrotesque(
+                    color: Color(ov.textColor),
+                    fontSize: fontSize,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (_exporting)
-                    const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: kWhite,
+            ),
+          );
+        }).toList(),
+      );
+    }
+    return StreamBuilder<List<GazeTextOverlay>>(
+      stream: _overlayRepo.watchForGaze(_current.id),
+      builder: (_, snap) {
+        final rows = snap.data ?? const <GazeTextOverlay>[];
+        return Stack(
+          children: rows.map((ov) {
+            final left = (ov.x * gridWidth).clamp(0.0, gridWidth - 24);
+            final top = (ov.y * gridHeight).clamp(0.0, gridHeight - 24);
+            return Positioned(
+              left: left,
+              top: top,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                decoration: BoxDecoration(
+                  color: ov.bgColor != null
+                      ? Color(ov.bgColor!)
+                      : Colors.transparent,
+                ),
+                child: Text(
+                  ov.content,
+                  style: GoogleFonts.bricolageGrotesque(
+                    color: Color(ov.textColor),
+                    fontSize: (gridWidth * 0.04) * ov.scale,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        );
+      },
+    );
+  }
+
+  Widget _buildEditBottomPanel() {
+    const textSwatches = <int>[
+      0xFFFFFFFF,
+      0xFF000000,
+      0xFFFF0000,
+      0xFF00FF00,
+      0xFF0000FF,
+      0xFFFFFF00,
+    ];
+    const bgSwatches = <int?>[
+      null,
+      0xAA000000,
+      0xAAFFFFFF,
+      0xAAFF0000,
+      0xAA00FF00,
+      0xAA0000FF,
+    ];
+    final selected = _selectedOverlay;
+    final screenH = MediaQuery.of(context).size.height;
+    final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
+    return SafeArea(
+      top: false,
+      child: Padding(
+        // Lift panel above keyboard.
+        padding: EdgeInsets.only(bottom: keyboardInset),
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          decoration: BoxDecoration(
+            color: kDarkBlue,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              // Hard cap prevents RenderFlex overflow on small heights.
+              maxHeight: screenH * 0.4,
+            ),
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                Row(
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: _handleAddOverlay,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: kDarkBlue,
+                        foregroundColor: kWhite,
+                        side: BorderSide(color: kWhite.withValues(alpha: 0.2)),
                       ),
-                    )
-                  else
-                    const Icon(
-                      Icons.download_for_offline_outlined,
-                      color: kWhite,
-                      size: 24,
+                      icon: const Icon(Icons.add, size: 16),
+                      label: const Text('Add Text'),
                     ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      _exporting ? 'Exporting…' : 'Save to Gallery',
-                      style: GoogleFonts.bricolageGrotesque(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: kWhite,
+                    const SizedBox(width: 8),
+                    if (selected != null)
+                      ElevatedButton.icon(
+                        onPressed: _handleDeleteOverlay,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: kDarkBlue,
+                          foregroundColor: kWhite,
+                          side: BorderSide(
+                            color: kWhite.withValues(alpha: 0.2),
+                          ),
+                        ),
+                        icon: const Icon(Icons.delete_outline, size: 16),
+                        label: const Text('Delete'),
                       ),
+                  ],
+                ),
+                if (selected != null) ...[
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    key: ValueKey(selected.localId),
+                    initialValue: selected.text,
+                    onChanged: (v) {
+                      selected.text = v;
+                      setState(() {});
+                    },
+                    style: GoogleFonts.bricolageGrotesque(color: kWhite),
+                    decoration: const InputDecoration(
+                      hintText: 'Overlay text',
+                      isDense: true,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    children: textSwatches
+                        .map(
+                          (c) => _SwatchDot(
+                            color: Color(c),
+                            selected: selected.textColor == c,
+                            onTap: () {
+                              selected.textColor = c;
+                              setState(() {});
+                            },
+                          ),
+                        )
+                        .toList(),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    children: bgSwatches
+                        .map(
+                          (c) => _SwatchDot(
+                            color: c == null ? Colors.transparent : Color(c),
+                            showBorder: true,
+                            selected: selected.bgColor == c,
+                            onTap: () {
+                              selected.bgColor = c;
+                              setState(() {});
+                            },
+                          ),
+                        )
+                        .toList(),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Drag to move. Pinch selected text to scale.',
+                    style: GoogleFonts.bricolageGrotesque(
+                      color: kWhite.withValues(alpha: 0.6),
+                      fontSize: 12,
                     ),
                   ),
                 ],
-              ),
+              ],
             ),
           ),
         ),
       ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      bottomNavigationBar: _isEditMode
+          ? _buildEditBottomPanel()
+          : SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                ).copyWith(bottom: 16),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: _exporting ? null : _handleSaveToGallery,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: kAccentBlue,
+                      foregroundColor: kWhite,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(50),
+                      ),
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (_exporting)
+                          const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: kWhite,
+                            ),
+                          )
+                        else if (_exportSuccessFlash)
+                          const Icon(
+                            Icons.check_circle_outline,
+                            color: kWhite,
+                            size: 24,
+                          )
+                        else
+                          const Icon(
+                            Icons.download_for_offline_outlined,
+                            color: kWhite,
+                            size: 24,
+                          ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            _exporting
+                                ? 'Exporting…'
+                                : (_exportSuccessFlash
+                                      ? 'Exported successfully'
+                                      : 'Save to Gallery'),
+                            style: GoogleFonts.bricolageGrotesque(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: kWhite,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
       body: SafeArea(
         bottom: false,
         child: Column(
@@ -279,9 +633,7 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
                         )
                       : TextButton(
                           onPressed: _isEditMode
-                              ? () {
-                                  _commitEdits?.call();
-                                }
+                              ? _handleSaveAllEdits
                               : _handleToggleEditMode,
                           style: TextButton.styleFrom(
                             backgroundColor: _isEditMode
@@ -343,145 +695,151 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
               isEditMode: _isEditMode,
               onDoublePrimaryEnabled: () =>
                   _handleFlagChanged(doublePrimary: true),
-              onSaveEdits: _handleSaveEdits,
+              onSaveEdits: _captureSlotEditChanges,
               onCommitEditsBound: (fn) => _commitEdits = fn,
+              overlayBuilder: _buildOverlayLayer,
             ),
 
             // ── Sections below greyed out in edit mode ────────
-            AnimatedOpacity(
-              opacity: _isEditMode ? 0.25 : 1.0,
-              duration: const Duration(milliseconds: 200),
-              child: IgnorePointer(
-                ignoring: _isEditMode,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 12),
+            Expanded(
+              child: AnimatedOpacity(
+                opacity: _isEditMode ? 0.25 : 1.0,
+                duration: const Duration(milliseconds: 200),
+                child: IgnorePointer(
+                  ignoring: _isEditMode,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 12),
 
-                    // ── Settings island ───────────────────────
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                        ).add(const EdgeInsets.only(top: 16)),
-                        decoration: BoxDecoration(
-                          color: kDarkBlue,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: _ToggleRow(
-                                label: 'Compact Mode?',
-                                value: _compactMode,
-                                onChanged: (v) =>
-                                    _handleFlagChanged(compact: v),
-                              ),
+                        // ── Settings island ───────────────────────
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                            ).add(const EdgeInsets.only(top: 16)),
+                            decoration: BoxDecoration(
+                              color: kDarkBlue,
+                              borderRadius: BorderRadius.circular(16),
                             ),
-                            Container(
-                              width: 1,
-                              height: 40,
-                              margin: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                              ),
-                              color: kWhite.withValues(alpha: 0.08),
-                            ),
-                            Expanded(
-                              child: _ToggleRow(
-                                label: 'Dual Primary?',
-                                value: _dualPrimary,
-                                onChanged: (v) =>
-                                    _handleFlagChanged(doublePrimary: v),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // ── Patient Info card ─────────────────────
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          color: kDarkBlue,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
+                            child: Row(
                               children: [
-                                Opacity(
-                                  opacity: 0.5,
-                                  child: Text(
-                                    'Patient Info',
-                                    style: GoogleFonts.bricolageGrotesque(
-                                      fontSize: 12,
-                                      color: kWhite,
-                                    ),
+                                Expanded(
+                                  child: _ToggleRow(
+                                    label: 'Compact Mode?',
+                                    value: _compactMode,
+                                    onChanged: (v) =>
+                                        _handleFlagChanged(compact: v),
                                   ),
                                 ),
-                                const Spacer(),
-                                TextButton(
-                                  onPressed: _handleOpenUpdateSheet,
-                                  style: TextButton.styleFrom(
-                                    backgroundColor: kBlack,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 4,
-                                    ),
-                                    minimumSize: Size.zero,
-                                    tapTargetSize:
-                                        MaterialTapTargetSize.shrinkWrap,
+                                Container(
+                                  width: 1,
+                                  height: 40,
+                                  margin: const EdgeInsets.symmetric(
+                                    horizontal: 12,
                                   ),
-                                  child: Text(
-                                    'Update',
-                                    style: GoogleFonts.bricolageGrotesque(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: kWhite,
-                                    ),
+                                  color: kWhite.withValues(alpha: 0.08),
+                                ),
+                                Expanded(
+                                  child: _ToggleRow(
+                                    label: 'Dual Primary?',
+                                    value: _dualPrimary,
+                                    onChanged: (v) =>
+                                        _handleFlagChanged(doublePrimary: v),
                                   ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              _current.name,
-                              style: GoogleFonts.bricolageGrotesque(
-                                fontSize: 24,
-                                fontWeight: FontWeight.w700,
-                                color: kWhite,
-                              ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        // ── Patient Info card ─────────────────────
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 12,
                             ),
-                            if (_current.notes != null) ...[
-                              const SizedBox(height: 4),
-                              Opacity(
-                                opacity: 0.75,
-                                child: Text(
-                                  _current.notes!,
+                            decoration: BoxDecoration(
+                              color: kDarkBlue,
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    Opacity(
+                                      opacity: 0.5,
+                                      child: Text(
+                                        'Patient Info',
+                                        style: GoogleFonts.bricolageGrotesque(
+                                          fontSize: 12,
+                                          color: kWhite,
+                                        ),
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    TextButton(
+                                      onPressed: _handleOpenUpdateSheet,
+                                      style: TextButton.styleFrom(
+                                        backgroundColor: kBlack,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 4,
+                                        ),
+                                        minimumSize: Size.zero,
+                                        tapTargetSize:
+                                            MaterialTapTargetSize.shrinkWrap,
+                                      ),
+                                      child: Text(
+                                        'Update',
+                                        style: GoogleFonts.bricolageGrotesque(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: kWhite,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  _current.name,
                                   style: GoogleFonts.bricolageGrotesque(
-                                    fontSize: 14,
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.w700,
                                     color: kWhite,
                                   ),
                                 ),
-                              ),
-                            ],
-                            const SizedBox(height: 4),
-                          ],
+                                if (_current.notes != null) ...[
+                                  const SizedBox(height: 4),
+                                  Opacity(
+                                    opacity: 0.75,
+                                    child: Text(
+                                      _current.notes!,
+                                      style: GoogleFonts.bricolageGrotesque(
+                                        fontSize: 14,
+                                        color: kWhite,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                                const SizedBox(height: 4),
+                              ],
+                            ),
+                          ),
                         ),
-                      ),
+                        const SizedBox(height: 12),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -542,6 +900,65 @@ class _ToggleRow extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+class _OverlayDraft {
+  _OverlayDraft({
+    required this.localId,
+    required this.text,
+    required this.x,
+    required this.y,
+    required this.scale,
+    required this.textColor,
+    required this.bgColor,
+    required this.zIndex,
+  });
+
+  final int localId;
+  String text;
+  double x;
+  double y;
+  double scale;
+  int textColor;
+  int? bgColor;
+  int zIndex;
+}
+
+class _SwatchDot extends StatelessWidget {
+  const _SwatchDot({
+    required this.color,
+    required this.selected,
+    this.onTap,
+    this.showBorder = false,
+  });
+
+  final Color color;
+  final bool selected;
+  final VoidCallback? onTap;
+  final bool showBorder;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 22,
+        height: 22,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: selected
+                ? kAccentBlue
+                : (showBorder
+                      ? kWhite.withValues(alpha: 0.25)
+                      : Colors.transparent),
+            width: selected ? 2 : 1,
+          ),
+        ),
+      ),
     );
   }
 }
