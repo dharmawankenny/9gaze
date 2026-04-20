@@ -1,14 +1,18 @@
 // 3×3 gaze direction grid for the Gaze Detail screen.
 //
-// Each cell shows either the user's captured photo (via GazeSlotImage)
-// or a faded static gaze-face placeholder. Tapping a cell opens the
-// pick-image → ML detect → editor pipeline if empty, or opens the
-// editor directly if the slot is already filled.
+// Normal mode: tapping empty cell opens multi-photo picker;
+// tapping filled cell opens SlotEditorScreen.
+//
+// Edit mode (isEditMode = true): cells become Draggable/DragTarget
+// pairs. Dragging one cell onto another swaps their images in a
+// local pending map. The parent calls saveEdits() to flush the
+// pending swaps to the DB in a single transaction.
 //
 // The centre cell has special dual-primary behaviour when
 // [isDoublePrimary] is true: it splits top-to-bottom into two equal
 // compact halves — top for [SlotKey.primary], bottom for
-// [SlotKey.primarySecondary]. Each half is independently tappable.
+// [SlotKey.primarySecondary]. Each half is independently tappable
+// in normal mode and independently draggable/droppable in edit mode.
 
 import 'dart:io';
 
@@ -27,18 +31,22 @@ import 'package:kensa_9gaze/services/image_storage.dart';
 import 'package:kensa_9gaze/widgets/animated_gaze_face.dart';
 import 'package:kensa_9gaze/widgets/gaze_slot_image.dart';
 
-/// Full-width 3×3 grid of tappable gaze-direction cells.
+/// Full-width 3×3 grid of tappable / draggable gaze-direction cells.
 ///
-/// Uses [Wrap] + [LayoutBuilder] identical to the original
-/// [GazeDirectionGrid] so that each cell is exactly 1/3 of the
-/// available width and 1:1 square. Reacts to the slot stream for
-/// [gazeId] so newly captured photos appear instantly.
+/// Normal mode: tap empty → multi-photo picker; tap filled → editor.
+/// Edit mode  : drag a cell onto another to swap their images.
+///              Call [saveEdits] on the returned key to flush swaps
+///              to the DB.
 class GazeDirectionGrid extends StatefulWidget {
   const GazeDirectionGrid({
     super.key,
     required this.gazeId,
     this.isDoublePrimary = false,
     this.isCompact = false,
+    this.isEditMode = false,
+    this.onDoublePrimaryEnabled,
+    this.onSaveEdits,
+    this.onCommitEditsBound,
   });
 
   /// ID of the parent [Gaze] row.
@@ -49,6 +57,23 @@ class GazeDirectionGrid extends StatefulWidget {
 
   /// When true, each cell uses a 2:1 (landscape) aspect ratio.
   final bool isCompact;
+
+  /// When true, cells are draggable; taps for pick/edit are disabled.
+  final bool isEditMode;
+
+  /// Called when a bulk pick fills both primary slots.
+  final VoidCallback? onDoublePrimaryEnabled;
+
+  /// Called when the user saves edit-mode reorders.
+  ///
+  /// Receives a map of slot DB id → desired final slotKey string
+  /// for every row that changed position. The parent is responsible
+  /// for calling [GazeSlotsRepository.reorderSlots] with this map.
+  final void Function(Map<int, String> changes)? onSaveEdits;
+
+  /// Called once during initState with a callback that the parent
+  /// can invoke to trigger [commitEdits] from outside the widget.
+  final void Function(VoidCallback trigger)? onCommitEditsBound;
 
   @override
   State<GazeDirectionGrid> createState() => _GazeDirectionGridState();
@@ -61,11 +86,24 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
   /// Tracks which slots are being set up to prevent double-taps.
   final Set<SlotKey> _pickingInProgress = {};
 
+  /// Pending slot-key → slot mapping while in edit mode.
+  ///
+  /// Populated when edit mode is entered (copy of DB state) and
+  /// mutated by drag-swap operations. Flushed to DB on save.
+  /// Null when not in edit mode.
+  Map<SlotKey, GazeSlot?>? _pendingSlotMap;
+
+  /// Which cell the user is currently hovering a drag over.
+  SlotKey? _dragOverKey;
+
   @override
   void initState() {
     super.initState();
     _slotsRepo = GazeSlotsRepository(appDatabase);
     _stream = _slotsRepo.watchAllForGaze(widget.gazeId);
+    // Bind the commitEdits trigger so the parent's Save button can
+    // call it without needing access to private state.
+    widget.onCommitEditsBound?.call(commitEdits);
   }
 
   @override
@@ -73,44 +111,189 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
     super.didUpdateWidget(old);
     if (old.gazeId != widget.gazeId) {
       _stream = _slotsRepo.watchAllForGaze(widget.gazeId);
+      _pendingSlotMap = null;
+    }
+    // Re-bind trigger callback when widget instance changes.
+    if (old.onCommitEditsBound != widget.onCommitEditsBound) {
+      widget.onCommitEditsBound?.call(commitEdits);
+    }
+    // Entering edit mode: snapshot current DB state into pending map.
+    if (!old.isEditMode && widget.isEditMode) {
+      _pendingSlotMap = null; // will be set on first stream snapshot
+    }
+    // Leaving edit mode without saving: discard pending changes.
+    if (old.isEditMode && !widget.isEditMode) {
+      _pendingSlotMap = null;
+      _dragOverKey = null;
+    }
+  }
+
+  /// Initialises [_pendingSlotMap] from a fresh DB snapshot if not
+  /// already set. Called once when edit mode is first rendered.
+  void _initPendingIfNeeded(Map<String, GazeSlot> dbSlotMap) {
+    if (_pendingSlotMap != null) return;
+    _pendingSlotMap = {
+      for (final key in _allEditableKeys()) key: dbSlotMap[key.name],
+    };
+  }
+
+  /// All slot keys that can participate in drag-swap, including the
+  /// 10th slot when double-primary is active.
+  List<SlotKey> _allEditableKeys() {
+    final keys = List<SlotKey>.from(kGridSlotOrder);
+    if (widget.isDoublePrimary &&
+        !keys.contains(SlotKey.primarySecondary)) {
+      keys.add(SlotKey.primarySecondary);
+    }
+    return keys;
+  }
+
+  /// Swaps the slot data for [keyA] and [keyB] in [_pendingSlotMap].
+  void _swapPending(SlotKey keyA, SlotKey keyB) {
+    if (keyA == keyB) return;
+    final map = _pendingSlotMap;
+    if (map == null) return;
+    final tmp = map[keyA];
+    map[keyA] = map[keyB];
+    map[keyB] = tmp;
+    setState(() => _dragOverKey = null);
+  }
+
+  /// Computes pending changes and fires [onSaveEdits] callback.
+  ///
+  /// Builds a map of slot DB id → desired final slotKey for every
+  /// row whose position changed. Clears pending state afterwards.
+  void commitEdits() {
+    final pending = _pendingSlotMap;
+    if (pending == null) return;
+
+    final targetKeyById = <int, String>{};
+    for (final entry in pending.entries) {
+      final slot = entry.value;
+      if (slot == null) continue;
+      final targetKey = entry.key.name;
+      if (slot.slotKey != targetKey) {
+        targetKeyById[slot.id] = targetKey;
+      }
+    }
+
+    _pendingSlotMap = null;
+    if (targetKeyById.isNotEmpty) {
+      widget.onSaveEdits?.call(targetKeyById);
     }
   }
 
   // ── Slot pick pipeline ───────────────────────────────────────
 
+  /// Handles a tap on a grid cell.
+  ///
+  /// Filled cell → open [SlotEditorScreen] for adjustment/replace.
+  /// Empty cell  → open multi-photo picker, auto-fill in order.
   Future<void> _handleCellTap(
     BuildContext context,
     SlotKey key,
     GazeSlot? existing,
+    Map<String, GazeSlot> slotMap,
   ) async {
-    if (_pickingInProgress.contains(key)) return;
+    if (_pickingInProgress.isNotEmpty) return;
 
     if (existing != null) {
       await _openEditor(context, key, existing);
       return;
     }
 
-    setState(() => _pickingInProgress.add(key));
-    try {
-      await _pickAndCreateSlot(context, key);
-    } finally {
-      if (mounted) setState(() => _pickingInProgress.remove(key));
+    await _pickAndFillSlots(context, key, slotMap);
+  }
+
+  /// Computes the ordered list of empty slots available for filling,
+  /// starting from [fromKey] in canonical order.
+  ///
+  /// The canonical order is [kGridSlotOrder] (slots 1–9) followed by
+  /// [SlotKey.primarySecondary] (slot 10). Slots already filled are
+  /// skipped. The list always starts at [fromKey]'s position.
+  List<SlotKey> _emptySlotsFronKey(
+    SlotKey fromKey,
+    Map<String, GazeSlot> slotMap,
+  ) {
+    // Full canonical order including the 10th slot at the end.
+    final order = [...kGridSlotOrder];
+    if (!order.contains(SlotKey.primarySecondary)) {
+      order.add(SlotKey.primarySecondary);
+    }
+
+    final startIdx = order.indexOf(fromKey);
+    // Slots from tapped position to end, then wrap from beginning,
+    // filtered to only empty ones.
+    final reordered = [
+      ...order.sublist(startIdx),
+      ...order.sublist(0, startIdx),
+    ];
+    return reordered
+        .where((k) => slotMap[k.name] == null)
+        .toList();
+  }
+
+  /// Opens multi-photo picker for up to [availableSlots] photos,
+  /// then processes each one sequentially, assigning to slots in
+  /// canonical order. Never opens the editor — stays on grid.
+  Future<void> _pickAndFillSlots(
+    BuildContext context,
+    SlotKey fromKey,
+    Map<String, GazeSlot> slotMap,
+  ) async {
+    final targetSlots = _emptySlotsFronKey(fromKey, slotMap);
+    if (targetSlots.isEmpty) return;
+
+    final picker = ImagePicker();
+    // pickMultipleMedia is the only multi-select API on image_picker
+    // 1.x. On Android it opens the system photo picker
+    // (ACTION_PICK_IMAGES on API 33+, MediaStore on older).
+    // The `limit` param is advisory — the picker UI enforces it on
+    // API 33+ but may be ignored on older OS versions; we slice the
+    // result array ourselves below to stay within targetSlots.length.
+    final picked = await picker.pickMultipleMedia(
+      limit: targetSlots.length,
+    );
+    if (picked.isEmpty || !mounted) return;
+
+    // Mark all target slots (up to picked count) as in-progress so
+    // the grid shows spinners immediately on each affected cell.
+    final assignSlots = targetSlots.take(picked.length).toList();
+    setState(() => _pickingInProgress.addAll(assignSlots));
+
+    // If picked count fills both primary slots, enable dual-primary
+    // on the parent before processing so the grid layout updates.
+    final willFillSecondary =
+        assignSlots.contains(SlotKey.primarySecondary);
+    if (willFillSecondary && !widget.isDoublePrimary) {
+      widget.onDoublePrimaryEnabled?.call();
+    }
+
+    // Process each photo sequentially to avoid saturating the ML
+    // detector and file system with concurrent operations.
+    for (var i = 0; i < assignSlots.length; i++) {
+      final key = assignSlots[i];
+      final file = picked[i];
+
+      try {
+        await _processOneSlot(key: key, sourcePath: file.path);
+      } catch (_) {
+        // Individual slot failures are silent — the slot stays
+        // empty and the user can retry by tapping it again.
+      } finally {
+        if (mounted) setState(() => _pickingInProgress.remove(key));
+      }
     }
   }
 
-  Future<void> _pickAndCreateSlot(BuildContext context, SlotKey key) async {
-    // Capture navigator before async gaps.
-    final nav = Navigator.of(context);
-
-    final picker = ImagePicker();
-    final picked = await picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 100,
-    );
-    if (picked == null || !mounted) return;
-
+  /// Copies [sourcePath] into app storage, runs ML detection, and
+  /// upserts the resulting [GazeSlot] row for [key].
+  Future<void> _processOneSlot({
+    required SlotKey key,
+    required String sourcePath,
+  }) async {
     final relPath = await ImageStorage.copySlotImage(
-      sourcePath: picked.path,
+      sourcePath: sourcePath,
       gazeId: widget.gazeId,
       slotKey: key.name,
     );
@@ -122,16 +305,13 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
     final srcH = dims?.$2 ?? 1080;
 
     final eyes = await FaceAligner.detectEyes(absPath);
-    final AutoFit autoFit;
-    if (eyes != null) {
-      autoFit = FaceAligner.computeAutoFit(
-        eyes: eyes,
-        sourceWidth: srcW,
-        sourceHeight: srcH,
-      );
-    } else {
-      autoFit = AutoFit.identity;
-    }
+    final autoFit = eyes != null
+        ? FaceAligner.computeAutoFit(
+            eyes: eyes,
+            sourceWidth: srcW,
+            sourceHeight: srcH,
+          )
+        : AutoFit.identity;
 
     await _slotsRepo.upsert(
       gazeId: widget.gazeId,
@@ -148,37 +328,15 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
       eyeRightX: eyes?.rightX,
       eyeRightY: eyes?.rightY,
     );
-
-    final created = await _slotsRepo.getOne(widget.gazeId, key);
-    if (created != null && mounted) {
-      await _openEditorWithNav(nav, key, created);
-    }
   }
 
+  /// Opens [SlotEditorScreen] for manual adjustment of a filled slot.
   Future<void> _openEditor(
     BuildContext context,
     SlotKey key,
     GazeSlot slot,
   ) async {
     await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        fullscreenDialog: true,
-        builder: (_) => SlotEditorScreen(
-          slot: slot,
-          gazeId: widget.gazeId,
-          slotKey: key,
-          isCompact: widget.isCompact,
-        ),
-      ),
-    );
-  }
-
-  Future<void> _openEditorWithNav(
-    NavigatorState nav,
-    SlotKey key,
-    GazeSlot slot,
-  ) async {
-    await nav.push(
       MaterialPageRoute<void>(
         fullscreenDialog: true,
         builder: (_) => SlotEditorScreen(
@@ -200,42 +358,72 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
       child: StreamBuilder<List<GazeSlot>>(
         stream: _stream,
         builder: (context, snapshot) {
-          final slots = snapshot.data ?? [];
-          final slotMap = {for (final s in slots) s.slotKey: s};
+          final dbSlots = snapshot.data ?? [];
+          final dbSlotMap = {for (final s in dbSlots) s.slotKey: s};
 
-          // LayoutBuilder + Wrap mirrors the original working grid.
-          // Wrap gives each child its requested size and wraps rows,
-          // so each SizedBox(size, size) is guaranteed square.
+          // In edit mode: initialise pending map from DB snapshot
+          // on first render, then use pending map for display.
+          if (widget.isEditMode) {
+            _initPendingIfNeeded(dbSlotMap);
+          }
+
+          // Displayed slot map: pending in edit mode, DB otherwise.
+          final displayMap = widget.isEditMode && _pendingSlotMap != null
+              ? {
+                  for (final e in _pendingSlotMap!.entries)
+                    e.key.name: e.value,
+                }
+              : dbSlotMap;
+
           return LayoutBuilder(
             builder: (context, constraints) {
               final cellSize = constraints.maxWidth / 3;
-              final cellHeight = widget.isCompact ? cellSize / 2 : cellSize;
+              final cellHeight =
+                  widget.isCompact ? cellSize / 2 : cellSize;
 
               Widget buildCell(SlotKey key) {
-                final existing = slotMap[key.name];
+                final slot = displayMap[key.name];
 
+                // Dual-primary centre cell.
                 if (key == SlotKey.primary && widget.isDoublePrimary) {
+                  if (widget.isEditMode) {
+                    // In edit mode each half is its own drag target.
+                    return _buildDualPrimaryEditCell(
+                      cellSize,
+                      displayMap,
+                    );
+                  }
                   return _DualPrimaryCell(
                     size: cellSize,
                     height: cellHeight,
-                    primarySlot: slotMap[SlotKey.primary.name],
-                    secondarySlot: slotMap[SlotKey.primarySecondary.name],
-                    pickingPrimary: _pickingInProgress.contains(
-                      SlotKey.primary,
-                    ),
-                    pickingSecondary: _pickingInProgress.contains(
-                      SlotKey.primarySecondary,
-                    ),
+                    primarySlot: displayMap[SlotKey.primary.name],
+                    secondarySlot:
+                        displayMap[SlotKey.primarySecondary.name],
+                    pickingPrimary: _pickingInProgress
+                        .contains(SlotKey.primary),
+                    pickingSecondary: _pickingInProgress
+                        .contains(SlotKey.primarySecondary),
                     onTapPrimary: () => _handleCellTap(
                       context,
                       SlotKey.primary,
-                      slotMap[SlotKey.primary.name],
+                      dbSlotMap[SlotKey.primary.name],
+                      dbSlotMap,
                     ),
                     onTapSecondary: () => _handleCellTap(
                       context,
                       SlotKey.primarySecondary,
-                      slotMap[SlotKey.primarySecondary.name],
+                      dbSlotMap[SlotKey.primarySecondary.name],
+                      dbSlotMap,
                     ),
+                  );
+                }
+
+                if (widget.isEditMode) {
+                  return _buildDragCell(
+                    key: key,
+                    slot: slot,
+                    size: cellSize,
+                    height: cellHeight,
                   );
                 }
 
@@ -245,16 +433,172 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
                   slotKey: key,
                   size: cellSize,
                   height: cellHeight,
-                  slot: existing,
+                  slot: slot,
                   isPicking: _pickingInProgress.contains(key),
-                  onTap: () => _handleCellTap(context, key, existing),
+                  onTap: () => _handleCellTap(
+                    context,
+                    key,
+                    dbSlotMap[key.name],
+                    dbSlotMap,
+                  ),
                 );
               }
 
-              return Wrap(children: kGridSlotOrder.map(buildCell).toList());
+              return Wrap(
+                children: kGridSlotOrder.map(buildCell).toList(),
+              );
             },
           );
         },
+      ),
+    );
+  }
+
+  /// Builds a single draggable + drop-target cell for edit mode.
+  Widget _buildDragCell({
+    required SlotKey key,
+    required GazeSlot? slot,
+    required double size,
+    required double height,
+  }) {
+    final isHoverTarget = _dragOverKey == key;
+    final cellContent = _EditModeCell(
+      direction: kSlotKeyToDirection[key]!,
+      slotKey: key,
+      slot: slot,
+      size: size,
+      height: height,
+      isHoverTarget: isHoverTarget,
+    );
+
+    return DragTarget<SlotKey>(
+      onWillAcceptWithDetails: (details) {
+        if (details.data == key) return false;
+        setState(() => _dragOverKey = key);
+        return true;
+      },
+      onLeave: (_) => setState(() => _dragOverKey = null),
+      onAcceptWithDetails: (details) => _swapPending(details.data, key),
+      builder: (_, __, ___) => Draggable<SlotKey>(
+        data: key,
+        // Ghost shown under the finger while dragging.
+        feedback: Opacity(
+          opacity: 0.75,
+          child: _EditModeCell(
+            direction: kSlotKeyToDirection[key]!,
+            slotKey: key,
+            slot: slot,
+            size: size,
+            height: height,
+            isHoverTarget: false,
+          ),
+        ),
+        // Cell at origin fades while being dragged.
+        childWhenDragging: Opacity(opacity: 0.3, child: cellContent),
+        child: cellContent,
+      ),
+    );
+  }
+
+  /// Builds the dual-primary centre cell split for edit mode —
+  /// two independently draggable/droppable half-cells stacked
+  /// top-to-bottom.
+  Widget _buildDualPrimaryEditCell(
+    double cellSize,
+    Map<String, GazeSlot?> displayMap,
+  ) {
+    final halfH = cellSize / 2;
+    return SizedBox(
+      width: cellSize,
+      height: cellSize,
+      child: Column(
+        children: [
+          _buildDragCell(
+            key: SlotKey.primary,
+            slot: displayMap[SlotKey.primary.name],
+            size: cellSize,
+            height: halfH,
+          ),
+          _buildDragCell(
+            key: SlotKey.primarySecondary,
+            slot: displayMap[SlotKey.primarySecondary.name],
+            size: cellSize,
+            height: halfH,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Edit-mode draggable cell ─────────────────────────────────────
+
+/// Cell rendered while [GazeDirectionGrid.isEditMode] is true.
+///
+/// Shows the photo (or empty placeholder) with a drag-handle icon
+/// overlay. When [isHoverTarget] is true a highlight border signals
+/// the user that dropping here will swap the two cells.
+class _EditModeCell extends StatelessWidget {
+  const _EditModeCell({
+    required this.direction,
+    required this.slotKey,
+    required this.slot,
+    required this.size,
+    required this.height,
+    required this.isHoverTarget,
+  });
+
+  final GazeDirection direction;
+  final SlotKey slotKey;
+  final GazeSlot? slot;
+  final double size;
+  final double height;
+  final bool isHoverTarget;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: height,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Background / image.
+          ColoredBox(
+            color: kDarkBlue.withValues(alpha: 0.5),
+            child: slot != null
+                ? GazeSlotImage(
+                    slot: slot!,
+                    renderSize: Size(size, height),
+                  )
+                : _EmptyCell(
+                    direction: direction,
+                    size: size,
+                    height: height,
+                    label: kSlotKeyLabel[slotKey] ?? '',
+                  ),
+          ),
+
+          // Drag handle icon — top-right corner.
+          Positioned(
+            top: 4,
+            right: 4,
+            child: Icon(
+              Icons.drag_indicator,
+              size: 14,
+              color: kWhite.withValues(alpha: 0.6),
+            ),
+          ),
+
+          // Drop-target highlight overlay.
+          if (isHoverTarget)
+            DecoratedBox(
+              decoration: BoxDecoration(
+                border: Border.all(color: kAccentBlue, width: 2),
+                color: kAccentBlue.withValues(alpha: 0.15),
+              ),
+            ),
+        ],
       ),
     );
   }

@@ -44,6 +44,15 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
   /// Guard against concurrent export calls.
   bool _exporting = false;
 
+  /// Whether the grid is in drag-reorder edit mode.
+  bool _isEditMode = false;
+
+  /// Guard against concurrent save-edits calls.
+  bool _savingEdits = false;
+
+  /// Callback set by the grid to let this screen trigger commitEdits.
+  VoidCallback? _commitEdits;
+
   @override
   void initState() {
     super.initState();
@@ -121,6 +130,30 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
     }
   }
 
+  /// Enters or exits edit mode. On exit without save, the grid
+  /// discards pending changes automatically via [isEditMode] flip.
+  void _handleToggleEditMode() {
+    if (_savingEdits) return;
+    setState(() => _isEditMode = !_isEditMode);
+  }
+
+  /// Called by the grid via [GazeDirectionGrid.onSaveEdits] with
+  /// the map of changed slot ids → target key names.
+  Future<void> _handleSaveEdits(Map<int, String> changes) async {
+    if (_savingEdits) return;
+    setState(() => _savingEdits = true);
+    try {
+      await _slotsRepo.reorderSlots(changes);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _savingEdits = false;
+          _isEditMode = false;
+        });
+      }
+    }
+  }
+
   /// Opens the update sheet and refreshes [_current] on save.
   Future<void> _handleOpenUpdateSheet() async {
     final updated = await showModalBottomSheet<Gaze>(
@@ -150,7 +183,9 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
             width: double.infinity,
             height: 56,
             child: ElevatedButton(
-              onPressed: _exporting ? null : _handleSaveToGallery,
+              onPressed: (_exporting || _isEditMode)
+                  ? null
+                  : _handleSaveToGallery,
               style: ElevatedButton.styleFrom(
                 backgroundColor: kAccentBlue,
                 foregroundColor: kWhite,
@@ -206,8 +241,16 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
               child: Row(
                 children: [
                   IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.arrow_back, color: kWhite, size: 24),
+                    onPressed: _isEditMode
+                        ? null
+                        : () => Navigator.of(context).pop(),
+                    icon: Icon(
+                      Icons.arrow_back,
+                      color: _isEditMode
+                          ? kWhite.withValues(alpha: 0.3)
+                          : kWhite,
+                      size: 24,
+                    ),
                     tooltip: 'Back',
                   ),
                   const SizedBox(width: 8),
@@ -220,6 +263,72 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
                       letterSpacing: -1.2,
                     ),
                   ),
+                  const Spacer(),
+                  // Edit / Save button.
+                  _savingEdits
+                      ? const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 16),
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: kWhite,
+                            ),
+                          ),
+                        )
+                      : TextButton(
+                          onPressed: _isEditMode
+                              ? () {
+                                  _commitEdits?.call();
+                                }
+                              : _handleToggleEditMode,
+                          style: TextButton.styleFrom(
+                            backgroundColor: _isEditMode
+                                ? kAccentBlue
+                                : kWhite.withValues(alpha: 0.08),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                          ),
+                          child: Text(
+                            _isEditMode ? 'Save' : 'Edit',
+                            style: GoogleFonts.bricolageGrotesque(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: kWhite,
+                            ),
+                          ),
+                        ),
+                  if (_isEditMode) ...[
+                    const SizedBox(width: 8),
+                    TextButton(
+                      onPressed: _handleToggleEditMode,
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: Text(
+                        'Cancel',
+                        style: GoogleFonts.bricolageGrotesque(
+                          fontSize: 14,
+                          color: kWhite.withValues(alpha: 0.5),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                  ] else
+                    const SizedBox(width: 8),
                 ],
               ),
             ),
@@ -231,133 +340,147 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
               gazeId: _current.id,
               isDoublePrimary: _dualPrimary,
               isCompact: _compactMode,
+              isEditMode: _isEditMode,
+              onDoublePrimaryEnabled: () =>
+                  _handleFlagChanged(doublePrimary: true),
+              onSaveEdits: _handleSaveEdits,
+              onCommitEditsBound: (fn) => _commitEdits = fn,
             ),
 
-            const SizedBox(height: 12),
-
-            // ── Settings island ───────────────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                ).add(EdgeInsets.only(top: 16)),
-                decoration: BoxDecoration(
-                  color: kDarkBlue,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Row(
-                  children: [
-                    // Compact Mode toggle
-                    Expanded(
-                      child: _ToggleRow(
-                        label: 'Compact Mode?',
-                        value: _compactMode,
-                        onChanged: (v) => _handleFlagChanged(compact: v),
-                      ),
-                    ),
-                    // Thin divider between the two toggles.
-                    Container(
-                      width: 1,
-                      height: 40,
-                      margin: const EdgeInsets.symmetric(horizontal: 12),
-                      color: kWhite.withValues(alpha: 0.08),
-                    ),
-                    // Dual Primary toggle
-                    Expanded(
-                      child: _ToggleRow(
-                        label: 'Dual Primary?',
-                        value: _dualPrimary,
-                        onChanged: (v) => _handleFlagChanged(doublePrimary: v),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            // ── Patient Info card ─────────────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  color: kDarkBlue,
-                  borderRadius: BorderRadius.circular(16),
-                ),
+            // ── Sections below greyed out in edit mode ────────
+            AnimatedOpacity(
+              opacity: _isEditMode ? 0.25 : 1.0,
+              duration: const Duration(milliseconds: 200),
+              child: IgnorePointer(
+                ignoring: _isEditMode,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Section header row
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Opacity(
-                          opacity: 0.5,
-                          child: Text(
-                            'Patient Info',
-                            style: GoogleFonts.bricolageGrotesque(
-                              fontSize: 12,
-                              color: kWhite,
-                            ),
-                          ),
-                        ),
-                        const Spacer(),
-                        TextButton(
-                          onPressed: _handleOpenUpdateSheet,
-                          style: TextButton.styleFrom(
-                            backgroundColor: kBlack,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 4,
-                            ),
-                            minimumSize: Size.zero,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          ),
-                          child: Text(
-                            'Update',
-                            style: GoogleFonts.bricolageGrotesque(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: kWhite,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                    const SizedBox(height: 12),
 
-                    const SizedBox(height: 4),
-
-                    // Patient name field
-                    Text(
-                      _current.name,
-                      style: GoogleFonts.bricolageGrotesque(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w700,
-                        color: kWhite,
+                    // ── Settings island ───────────────────────
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                        ).add(const EdgeInsets.only(top: 16)),
+                        decoration: BoxDecoration(
+                          color: kDarkBlue,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: _ToggleRow(
+                                label: 'Compact Mode?',
+                                value: _compactMode,
+                                onChanged: (v) =>
+                                    _handleFlagChanged(compact: v),
+                              ),
+                            ),
+                            Container(
+                              width: 1,
+                              height: 40,
+                              margin: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                              color: kWhite.withValues(alpha: 0.08),
+                            ),
+                            Expanded(
+                              child: _ToggleRow(
+                                label: 'Dual Primary?',
+                                value: _dualPrimary,
+                                onChanged: (v) =>
+                                    _handleFlagChanged(doublePrimary: v),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
 
-                    // Notes (only when present)
-                    if (_current.notes != null) ...[
-                      const SizedBox(height: 4),
-                      Opacity(
-                        opacity: 0.75,
-                        child: Text(
-                          _current.notes!,
-                          style: GoogleFonts.bricolageGrotesque(
-                            fontSize: 14,
-                            color: kWhite,
-                          ),
+                    const SizedBox(height: 12),
+
+                    // ── Patient Info card ─────────────────────
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: kDarkBlue,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Opacity(
+                                  opacity: 0.5,
+                                  child: Text(
+                                    'Patient Info',
+                                    style: GoogleFonts.bricolageGrotesque(
+                                      fontSize: 12,
+                                      color: kWhite,
+                                    ),
+                                  ),
+                                ),
+                                const Spacer(),
+                                TextButton(
+                                  onPressed: _handleOpenUpdateSheet,
+                                  style: TextButton.styleFrom(
+                                    backgroundColor: kBlack,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 4,
+                                    ),
+                                    minimumSize: Size.zero,
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                  child: Text(
+                                    'Update',
+                                    style: GoogleFonts.bricolageGrotesque(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: kWhite,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _current.name,
+                              style: GoogleFonts.bricolageGrotesque(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w700,
+                                color: kWhite,
+                              ),
+                            ),
+                            if (_current.notes != null) ...[
+                              const SizedBox(height: 4),
+                              Opacity(
+                                opacity: 0.75,
+                                child: Text(
+                                  _current.notes!,
+                                  style: GoogleFonts.bricolageGrotesque(
+                                    fontSize: 14,
+                                    color: kWhite,
+                                  ),
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 4),
+                          ],
                         ),
                       ),
-                    ],
-                    const SizedBox(height: 4),
+                    ),
                   ],
                 ),
               ),

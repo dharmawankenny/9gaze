@@ -118,6 +118,78 @@ class GazeSlotsRepository {
     );
   }
 
+  /// Atomically rewrites [slotKey] for multiple rows in one
+  /// transaction, using temp keys to sidestep the unique
+  /// (gazeId, slotKey) constraint during intermediate states.
+  ///
+  /// [targetKeyById] maps each slot DB id to its desired final
+  /// [slotKey] string. Only changed rows need to be included.
+  Future<void> reorderSlots(Map<int, String> targetKeyById) {
+    if (targetKeyById.isEmpty) return Future.value();
+    return _db.transaction(() async {
+      final now = DateTime.now();
+      // Phase 1: write unique temp keys to break existing conflicts.
+      var tempIdx = 0;
+      for (final id in targetKeyById.keys) {
+        await (_db.update(_db.gazeSlots)..where((s) => s.id.equals(id)))
+            .write(GazeSlotsCompanion(
+          slotKey: Value('__tmp_${tempIdx++}__'),
+          updatedAt: Value(now),
+        ));
+      }
+      // Phase 2: write final target keys.
+      for (final entry in targetKeyById.entries) {
+        await (_db.update(_db.gazeSlots)
+              ..where((s) => s.id.equals(entry.key)))
+            .write(GazeSlotsCompanion(
+          slotKey: Value(entry.value),
+          updatedAt: Value(now),
+        ));
+      }
+    });
+  }
+
+  /// Atomically swaps the [slotKey] values of two slot rows
+  /// identified by their DB [id]s.
+  ///
+  /// All image data, transform values, and eye landmarks stay on
+  /// the same row — only the [slotKey] column moves. This is the
+  /// correct semantic for a drag-and-swap reorder: the photo
+  /// assigned to position A moves to position B and vice-versa.
+  ///
+  /// Wrapped in a transaction so both updates succeed or neither
+  /// does — leaving the DB in a consistent state on error.
+  Future<void> swapSlotKeys({
+    required int idA,
+    required String keyA,
+    required int idB,
+    required String keyB,
+  }) {
+    return _db.transaction(() async {
+      final now = DateTime.now();
+      // Write a temporary key to idA first to avoid the unique
+      // (gazeId, slotKey) constraint firing during the swap.
+      // SQLite defers constraint checks to the end of the statement
+      // but NOT across separate UPDATE calls, so we use a temp value.
+      final tempKey = '__swap_temp__';
+      await (_db.update(_db.gazeSlots)..where((s) => s.id.equals(idA)))
+          .write(GazeSlotsCompanion(
+        slotKey: Value(tempKey),
+        updatedAt: Value(now),
+      ));
+      await (_db.update(_db.gazeSlots)..where((s) => s.id.equals(idB)))
+          .write(GazeSlotsCompanion(
+        slotKey: Value(keyA),
+        updatedAt: Value(now),
+      ));
+      await (_db.update(_db.gazeSlots)..where((s) => s.id.equals(idA)))
+          .write(GazeSlotsCompanion(
+        slotKey: Value(keyB),
+        updatedAt: Value(now),
+      ));
+    });
+  }
+
   /// Deletes the slot row by [id].
   ///
   /// The caller is responsible for deleting the associated image
