@@ -23,9 +23,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:gal/gal.dart';
 import 'package:image/image.dart' as img;
-import 'package:intl/intl.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:path/path.dart' as p;
+import 'package:uuid/uuid.dart';
 
 import 'package:kensa_9gaze/db/app_database.dart';
 import 'package:kensa_9gaze/models/slot_key.dart';
@@ -35,6 +33,8 @@ import 'package:kensa_9gaze/services/thumbnail_renderer.dart';
 /// Renders a gaze collage and saves it to the device gallery.
 class GazeExporter {
   GazeExporter._();
+
+  static const _uuid = Uuid();
 
   /// Grid width / height of the export canvas in pixels.
   static const int kExportGridPx = 1080;
@@ -63,19 +63,19 @@ class GazeExporter {
         slots: slots,
         overlays: overlays,
       );
-      final filename =
-          '9gaze_${gaze.name.replaceAll(RegExp(r'[^\w]'), '_')}'
-          '_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.jpg';
+      final shortId = _uuid.v4().replaceAll('-', '').substring(0, 8);
+      final safeName = gaze.name
+          .trim()
+          .replaceAll(RegExp(r'\s+'), '_')
+          .replaceAll(RegExp(r'[^A-Za-z0-9_]'), '')
+          .toLowerCase();
+      final normalizedName = safeName.isEmpty ? 'patient' : safeName;
+      final timeTag = DateTime.now().microsecondsSinceEpoch
+          .toRadixString(36)
+          .substring(4);
+      final filename = '9gaze_${normalizedName}_${shortId}_$timeTag.jpg';
 
-      // Write to a temp file first (gal.putImageBytes is the
-      // cleanest API; use putImage with a temp file path on
-      // platforms that require it).
-      final tmpDir = await getTemporaryDirectory();
-      final tmpFile = File(p.join(tmpDir.path, filename));
-      await tmpFile.writeAsBytes(bytes, flush: true);
-
-      await Gal.putImage(tmpFile.path, album: '9Gaze');
-      await tmpFile.delete();
+      await Gal.putImageBytes(bytes, name: filename, album: '9Gaze');
 
       return ExportResult(success: true, filename: filename);
     } catch (e) {
@@ -221,11 +221,11 @@ class GazeExporter {
       final frame = await codec.getNextFrame();
       final thumbImg = frame.image;
 
-      final src = Rect.fromLTWH(
-        0,
-        0,
-        thumbImg.width.toDouble(),
-        thumbImg.height.toDouble(),
+      final src = _computeCoverSrcRect(
+        srcW: thumbImg.width.toDouble(),
+        srcH: thumbImg.height.toDouble(),
+        dstW: cellRect.width,
+        dstH: cellRect.height,
       );
       canvas.save();
       canvas.clipRect(cellRect);
@@ -316,6 +316,30 @@ class GazeExporter {
       canvas.drawRect(rect, bg);
     }
     canvas.drawParagraph(paragraph, Offset(x + 6, y + 3));
+  }
+
+  /// Computes source crop rect for BoxFit.cover style drawImageRect.
+  ///
+  /// Keeps destination aspect ratio by cropping source (never stretching).
+  static Rect _computeCoverSrcRect({
+    required double srcW,
+    required double srcH,
+    required double dstW,
+    required double dstH,
+  }) {
+    final srcAspect = srcW / srcH;
+    final dstAspect = dstW / dstH;
+    if ((srcAspect - dstAspect).abs() < 0.000001) {
+      return Rect.fromLTWH(0, 0, srcW, srcH);
+    }
+    if (srcAspect > dstAspect) {
+      final cropW = srcH * dstAspect;
+      final left = (srcW - cropW) / 2;
+      return Rect.fromLTWH(left, 0, cropW, srcH);
+    }
+    final cropH = srcW / dstAspect;
+    final top = (srcH - cropH) / 2;
+    return Rect.fromLTWH(0, top, srcW, cropH);
   }
 }
 

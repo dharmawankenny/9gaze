@@ -111,6 +111,10 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
     setState(() {
       _compactMode = nextCompact;
       _dualPrimary = nextDouble;
+      _current = _current.copyWith(
+        isCompact: nextCompact,
+        isDoublePrimary: nextDouble,
+      );
       _flagsLoading = true;
     });
 

@@ -447,6 +447,10 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
     SlotKey key,
     GazeSlot slot,
   ) async {
+    final useCompactFrame =
+        widget.isCompact ||
+        (widget.isDoublePrimary &&
+            (key == SlotKey.primary || key == SlotKey.primarySecondary));
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         fullscreenDialog: true,
@@ -454,7 +458,7 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
           slot: slot,
           gazeId: widget.gazeId,
           slotKey: key,
-          isCompact: widget.isCompact,
+          isCompact: useCompactFrame,
         ),
       ),
     );
@@ -501,6 +505,14 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
 
                 // Dual-primary centre cell.
                 if (key == SlotKey.primary && widget.isDoublePrimary) {
+                  if (widget.isRepositionMode) {
+                    // In reposition mode each half is independently
+                    // pan/zoom editable using full-resolution render.
+                    return _buildDualPrimaryRepositionCell(
+                      cellSize,
+                      displayMap,
+                    );
+                  }
                   if (widget.isEditMode) {
                     // In edit mode each half is its own drag target.
                     return _buildDualPrimaryEditCell(
@@ -663,6 +675,33 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
             height: halfH,
           ),
           _buildDragCell(
+            key: SlotKey.primarySecondary,
+            slot: displayMap[SlotKey.primarySecondary.name],
+            size: cellSize,
+            height: halfH,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDualPrimaryRepositionCell(
+    double cellSize,
+    Map<String, GazeSlot?> displayMap,
+  ) {
+    final halfH = cellSize / 2;
+    return SizedBox(
+      width: cellSize,
+      height: cellSize,
+      child: Column(
+        children: [
+          _buildRepositionCell(
+            key: SlotKey.primary,
+            slot: displayMap[SlotKey.primary.name],
+            size: cellSize,
+            height: halfH,
+          ),
+          _buildRepositionCell(
             key: SlotKey.primarySecondary,
             slot: displayMap[SlotKey.primarySecondary.name],
             size: cellSize,
@@ -853,6 +892,7 @@ class _RepositionCellState extends State<_RepositionCell> {
       ),
     );
   }
+
 }
 
 // ── Edit-mode draggable cell ─────────────────────────────────────
