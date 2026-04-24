@@ -28,6 +28,7 @@ import 'package:kensa_9gaze/repositories/gaze_slots_repository.dart';
 import 'package:kensa_9gaze/screens/slot_editor/slot_editor_screen.dart';
 import 'package:kensa_9gaze/services/face_aligner.dart';
 import 'package:kensa_9gaze/services/image_storage.dart';
+import 'package:kensa_9gaze/services/thumbnail_renderer.dart';
 import 'package:kensa_9gaze/widgets/animated_gaze_face.dart';
 import 'package:kensa_9gaze/widgets/gaze_slot_image.dart';
 
@@ -251,16 +252,26 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
     if (targetSlots.isEmpty) return;
 
     final picker = ImagePicker();
-    // pickMultipleMedia is the only multi-select API on image_picker
-    // 1.x. On Android it opens the system photo picker
-    // (ACTION_PICK_IMAGES on API 33+, MediaStore on older).
-    // The `limit` param is advisory — the picker UI enforces it on
-    // API 33+ but may be ignored on older OS versions; we slice the
-    // result array ourselves below to stay within targetSlots.length.
-    final picked = await picker.pickMultipleMedia(
-      limit: targetSlots.length,
-    );
-    if (picked.isEmpty || !mounted) return;
+    List<XFile> picked;
+    if (targetSlots.length == 1) {
+      // image_picker pickMultipleMedia enforces minimum limit = 2.
+      // Single remaining slot must use single-image picker API.
+      final one = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 100,
+      );
+      if (one == null || !mounted) return;
+      picked = [one];
+    } else {
+      // pickMultipleMedia is only multi-select API on image_picker
+      // 1.x. On Android it opens system photo picker
+      // (ACTION_PICK_IMAGES on API 33+, MediaStore on older).
+      // `limit` is advisory on older OS versions; we still slice below.
+      picked = await picker.pickMultipleMedia(
+        limit: targetSlots.length,
+      );
+      if (picked.isEmpty || !mounted) return;
+    }
 
     // Mark all target slots (up to picked count) as in-progress so
     // the grid shows spinners immediately on each affected cell.
@@ -292,8 +303,9 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
     }
   }
 
-  /// Copies [sourcePath] into app storage, runs ML detection, and
-  /// upserts the resulting [GazeSlot] row for [key].
+  /// Copies [sourcePath] into app storage, runs ML detection,
+  /// upserts the resulting [GazeSlot] row for [key], and generates
+  /// all three resolution thumbnails from the stored transform.
   Future<void> _processOneSlot({
     required SlotKey key,
     required String sourcePath,
@@ -334,6 +346,29 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
       eyeRightX: eyes?.rightX,
       eyeRightY: eyes?.rightY,
     );
+
+    // Generate thumbnails after DB write; failures are silent so
+    // the slot remains usable even if thumb generation fails.
+    try {
+      await ImageStorage.generateThumbnails(
+        relPath: relPath,
+        params: SlotTransformParams(
+          sourceWidth: srcW,
+          sourceHeight: srcH,
+          translateX: autoFit.translateX,
+          translateY: autoFit.translateY,
+          scale: autoFit.scale,
+          rotation: autoFit.rotation,
+          eyeLeftX: eyes?.leftX,
+          eyeLeftY: eyes?.leftY,
+          eyeRightX: eyes?.rightX,
+          eyeRightY: eyes?.rightY,
+        ),
+      );
+    } catch (_) {
+      // Thumbnail generation is best-effort; the slot still works
+      // with the full-resolution fallback path.
+    }
   }
 
   /// Opens [SlotEditorScreen] for manual adjustment of a filled slot.
@@ -504,7 +539,7 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
       },
       onLeave: (_) => setState(() => _dragOverKey = null),
       onAcceptWithDetails: (details) => _swapPending(details.data, key),
-      builder: (_, __, ___) => Draggable<SlotKey>(
+      builder: (_, candidateA, candidateB) => Draggable<SlotKey>(
         data: key,
         // Ghost shown under the finger while dragging.
         feedback: Opacity(
@@ -592,9 +627,12 @@ class _EditModeCell extends StatelessWidget {
           ColoredBox(
             color: kDarkBlue.withValues(alpha: 0.5),
             child: slot != null
-                ? GazeSlotImage(
+                ? _ThumbImage(
                     slot: slot!,
-                    renderSize: Size(size, height),
+                    size: size,
+                    height: height,
+                    thumbSize: ThumbSize.px192,
+                    allowFullResFallback: false,
                   )
                 : _EmptyCell(
                     direction: direction,
@@ -814,8 +852,9 @@ class _DualPrimaryCell extends StatelessWidget {
 
 /// Cell content when the slot has a captured photo.
 ///
-/// No label overlay — the image speaks for itself. Labels are
-/// only shown in the empty-state placeholder.
+/// Uses [_ThumbImage] with 192 px thumbnail for fast preview render.
+/// No label overlay — image speaks for itself. Labels are only shown
+/// in empty-state placeholder.
 class _FilledCell extends StatelessWidget {
   const _FilledCell({
     required this.slot,
@@ -833,7 +872,103 @@ class _FilledCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GazeSlotImage(slot: slot, renderSize: Size(size, height));
+    return _ThumbImage(
+      slot: slot,
+      size: size,
+      height: height,
+      thumbSize: ThumbSize.px192,
+      allowFullResFallback: true,
+    );
+  }
+}
+
+class _ThumbImage extends StatefulWidget {
+  const _ThumbImage({
+    required this.slot,
+    required this.size,
+    required this.height,
+    required this.thumbSize,
+    required this.allowFullResFallback,
+  });
+
+  final GazeSlot slot;
+  final double size;
+  final double height;
+  final ThumbSize thumbSize;
+  final bool allowFullResFallback;
+
+  @override
+  State<_ThumbImage> createState() => _ThumbImageState();
+}
+
+class _ThumbImageState extends State<_ThumbImage> {
+  /// Resolved absolute path for _thumb192.jpg, or null while loading.
+  String? _thumbPath;
+
+  /// True once path resolution has completed.
+  bool _resolved = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _resolveThumbPath();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ThumbImage old) {
+    super.didUpdateWidget(old);
+    if (old.slot.imagePath != widget.slot.imagePath ||
+        old.slot.updatedAt != widget.slot.updatedAt ||
+        old.thumbSize != widget.thumbSize) {
+      _thumbPath = null;
+      _resolved = false;
+      _resolveThumbPath();
+    }
+  }
+
+  /// Resolves the absolute filesystem path for the 192 px thumbnail.
+  Future<void> _resolveThumbPath() async {
+    final absPath = await ImageStorage.resolveThumbAbsPath(
+      widget.slot.imagePath,
+      widget.thumbSize,
+    );
+    if (mounted) {
+      setState(() {
+        _thumbPath = absPath;
+        _resolved = true;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_resolved) {
+      return SizedBox(width: widget.size, height: widget.height);
+    }
+
+    final thumbPath = _thumbPath;
+    if (thumbPath != null && File(thumbPath).existsSync()) {
+      return SizedBox(
+        width: widget.size,
+        height: widget.height,
+        child: Image.file(
+          File(thumbPath),
+          key: ValueKey(
+            'thumb${widget.thumbSize.pixels}_${widget.slot.id}_${widget.slot.updatedAt.millisecondsSinceEpoch}',
+          ),
+          width: widget.size,
+          height: widget.height,
+          fit: BoxFit.cover,
+          gaplessPlayback: true,
+        ),
+      );
+    }
+
+    // Fallback to full-res render when thumbnail is unavailable.
+    if (!widget.allowFullResFallback) {
+      return SizedBox(width: widget.size, height: widget.height);
+    }
+    return GazeSlotImage(slot: widget.slot, renderSize: Size(widget.size, widget.height));
   }
 }
 

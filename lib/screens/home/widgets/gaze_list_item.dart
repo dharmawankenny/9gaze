@@ -14,12 +14,16 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
+import 'dart:io';
+
 import 'package:kensa_9gaze/app/theme.dart';
 import 'package:kensa_9gaze/db/app_database.dart';
 import 'package:kensa_9gaze/db/database_provider.dart';
 import 'package:kensa_9gaze/models/slot_key.dart';
 import 'package:kensa_9gaze/repositories/gaze_slots_repository.dart';
 import 'package:kensa_9gaze/screens/gaze_detail/gaze_detail_screen.dart';
+import 'package:kensa_9gaze/services/image_storage.dart';
+import 'package:kensa_9gaze/services/thumbnail_renderer.dart';
 import 'package:kensa_9gaze/widgets/animated_gaze_face.dart';
 import 'package:kensa_9gaze/widgets/gaze_slot_image.dart';
 
@@ -288,8 +292,12 @@ class _GazeThumbnailGridState extends State<_GazeThumbnailGrid> {
   }
 }
 
-/// A single thumbnail cell: photo if slot filled, icon if not.
-class _ThumbnailCell extends StatelessWidget {
+/// A single thumbnail cell: 32 px thumbnail if slot filled, icon if not.
+///
+/// Loads the pre-generated _thumb32.jpg file for performance. Falls
+/// back to [GazeSlotImage] (full-res render) when the thumbnail has
+/// not yet been generated (e.g. for slots created before this update).
+class _ThumbnailCell extends StatefulWidget {
   const _ThumbnailCell({
     required this.direction,
     required this.width,
@@ -303,29 +311,107 @@ class _ThumbnailCell extends StatelessWidget {
   final GazeSlot? slot;
 
   @override
+  State<_ThumbnailCell> createState() => _ThumbnailCellState();
+}
+
+class _ThumbnailCellState extends State<_ThumbnailCell> {
+  /// Resolved absolute path for _thumb32.jpg, or null while loading.
+  String? _thumbPath;
+
+  /// True once the async path resolution has completed.
+  bool _resolved = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _resolveThumbPath();
+  }
+
+  @override
+  void didUpdateWidget(_ThumbnailCell old) {
+    super.didUpdateWidget(old);
+    // Re-resolve when the slot changes (e.g. after replace).
+    if (old.slot?.imagePath != widget.slot?.imagePath ||
+        old.slot?.updatedAt != widget.slot?.updatedAt) {
+      _thumbPath = null;
+      _resolved = false;
+      _resolveThumbPath();
+    }
+  }
+
+  /// Resolves the absolute filesystem path for the 32 px thumbnail.
+  Future<void> _resolveThumbPath() async {
+    final slot = widget.slot;
+    if (slot == null) {
+      if (mounted) setState(() => _resolved = true);
+      return;
+    }
+    final absPath = await ImageStorage.resolveThumbAbsPath(
+      slot.imagePath,
+      ThumbSize.px32,
+    );
+    if (mounted) {
+      setState(() {
+        _thumbPath = absPath;
+        _resolved = true;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (slot != null) {
+    final slot = widget.slot;
+
+    // No slot image — show the faint direction icon placeholder.
+    if (slot == null) {
       return SizedBox(
-        width: width,
-        height: height,
-        child: GazeSlotImage(
-          slot: slot!,
-          renderSize: Size(width, height),
+        width: widget.width,
+        height: widget.height,
+        child: Center(
+          child: Opacity(
+            opacity: 0.1,
+            child: AnimatedGazeFace.static(
+              direction: widget.direction,
+              size: widget.height * 0.5,
+            ),
+          ),
         ),
       );
     }
 
-    return SizedBox(
-      width: width,
-      height: height,
-      child: Center(
-        child: Opacity(
-          opacity: 0.1,
-          child: AnimatedGazeFace.static(
-            direction: direction,
-            size: height * 0.5,
+    // Path not yet resolved — show an empty box to avoid flicker.
+    if (!_resolved) {
+      return SizedBox(width: widget.width, height: widget.height);
+    }
+
+    final thumbPath = _thumbPath;
+    // Thumbnail exists: render as Image.file (much cheaper than
+    // full-res dart:ui decode + custom paint).
+    if (thumbPath != null && File(thumbPath).existsSync()) {
+      return SizedBox(
+        width: widget.width,
+        height: widget.height,
+        child: Image.file(
+          File(thumbPath),
+          key: ValueKey(
+            'thumb32_${slot.id}_${slot.updatedAt.millisecondsSinceEpoch}',
           ),
+          width: widget.width,
+          height: widget.height,
+          fit: BoxFit.cover,
+          // Disable gapless playback flicker on key changes.
+          gaplessPlayback: true,
         ),
+      );
+    }
+
+    // Fallback: thumbnail not yet generated — use full-res render.
+    return SizedBox(
+      width: widget.width,
+      height: widget.height,
+      child: GazeSlotImage(
+        slot: slot,
+        renderSize: Size(widget.width, widget.height),
       ),
     );
   }

@@ -30,6 +30,7 @@ import 'package:path/path.dart' as p;
 import 'package:kensa_9gaze/db/app_database.dart';
 import 'package:kensa_9gaze/models/slot_key.dart';
 import 'package:kensa_9gaze/services/image_storage.dart';
+import 'package:kensa_9gaze/services/thumbnail_renderer.dart';
 
 /// Renders a gaze collage and saves it to the device gallery.
 class GazeExporter {
@@ -189,7 +190,13 @@ class GazeExporter {
   }
 
   /// Draws a single slot's image (or a black placeholder) into
-  /// [cellRect] on [canvas], applying the stored normalised transform.
+  /// [cellRect] on [canvas].
+  ///
+  /// Prefers the 300×300 px pre-cropped thumbnail (already
+  /// transformed, so we can just scale-to-fill the cell). Falls back
+  /// to decoding the full-resolution image and applying the stored
+  /// normalised transform when the thumbnail is absent (legacy slots
+  /// or partial generation).
   static Future<void> _drawSlotCell({
     required Canvas canvas,
     required GazeSlot? slot,
@@ -200,6 +207,35 @@ class GazeExporter {
       return;
     }
 
+    final thumbAbsPath = await ImageStorage.resolveThumbAbsPath(
+      slot.imagePath,
+      ThumbSize.px300,
+    );
+
+    // Fast path: thumbnail already encodes the transform, so we just
+    // scale it to fill the cell — no matrix arithmetic needed.
+    if (File(thumbAbsPath).existsSync()) {
+      final bytes = await File(thumbAbsPath).readAsBytes();
+      final codec =
+          await ui.instantiateImageCodec(Uint8List.fromList(bytes));
+      final frame = await codec.getNextFrame();
+      final thumbImg = frame.image;
+
+      final src = Rect.fromLTWH(
+        0,
+        0,
+        thumbImg.width.toDouble(),
+        thumbImg.height.toDouble(),
+      );
+      canvas.save();
+      canvas.clipRect(cellRect);
+      canvas.drawImageRect(thumbImg, src, cellRect, Paint());
+      canvas.restore();
+      thumbImg.dispose();
+      return;
+    }
+
+    // Fallback: full-resolution decode + transform application.
     final absPath = await ImageStorage.resolveAbsPath(slot.imagePath);
     final bytes = await File(absPath).readAsBytes();
     final codec = await ui.instantiateImageCodec(Uint8List.fromList(bytes));
@@ -219,7 +255,8 @@ class GazeExporter {
       final ely = slot.eyeLeftY! * sh;
       final erx = slot.eyeRightX! * sw;
       final ery = slot.eyeRightY! * sh;
-      final span = math.sqrt(math.pow(erx - elx, 2) + math.pow(ery - ely, 2));
+      final span =
+          math.sqrt(math.pow(erx - elx, 2) + math.pow(ery - ely, 2));
       baseScale = span > 0 ? fw / span : fw / sw;
     } else {
       baseScale = math.max(fw / sw, fh / sh);
@@ -229,18 +266,13 @@ class GazeExporter {
     final imgCx = slot.translateX * sw;
     final imgCy = slot.translateY * sh;
 
-    // Clip to cell rect.
     canvas.save();
     canvas.clipRect(cellRect);
-
-    // Apply transform: T(cellCenter) * T(offset) * R * S * T(-imgCenter)
     canvas.translate(cellRect.left + fw / 2, cellRect.top + fh / 2);
     canvas.rotate(slot.rotation);
     canvas.scale(totalScale, totalScale);
     canvas.translate(-imgCx, -imgCy);
-
     canvas.drawImage(srcImage, Offset.zero, Paint());
-
     canvas.restore();
     srcImage.dispose();
   }

@@ -107,11 +107,12 @@ class _GazeSlotImageState extends State<GazeSlotImage> {
   @override
   Widget build(BuildContext context) {
     final img = _image;
-    if (img == null)
+    if (img == null) {
       return SizedBox(
         width: widget.renderSize.width,
         height: widget.renderSize.height,
       );
+    }
 
     return SizedBox(
       width: widget.renderSize.width,

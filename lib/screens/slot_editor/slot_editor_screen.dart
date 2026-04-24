@@ -28,6 +28,7 @@ import 'package:kensa_9gaze/models/slot_key.dart';
 import 'package:kensa_9gaze/repositories/gaze_slots_repository.dart';
 import 'package:kensa_9gaze/services/face_aligner.dart';
 import 'package:kensa_9gaze/services/image_storage.dart';
+import 'package:kensa_9gaze/services/thumbnail_renderer.dart';
 import 'package:kensa_9gaze/widgets/gaze_slot_image.dart';
 
 /// Full-screen modal for adjusting pan/zoom/rotation of a slot photo.
@@ -67,10 +68,11 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
   late double _scale;
   late double _rotation;
 
-  /// Auto-fit baselines stored on creation — used by Reset.
-  late final double _autoTranslateX;
-  late final double _autoTranslateY;
-  late final double _autoRotation;
+  /// Last persisted transform baseline — used by Reset.
+  late double _savedTranslateX;
+  late double _savedTranslateY;
+  late double _savedScale;
+  late double _savedRotation;
 
   // ── Gesture bookkeeping ──────────────────────────────────────
 
@@ -95,24 +97,60 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
     _translateY = widget.slot.translateY;
     _scale = widget.slot.scale;
     _rotation = widget.slot.rotation;
-    _autoTranslateX = widget.slot.translateX;
-    _autoTranslateY = widget.slot.translateY;
-    _autoRotation = widget.slot.rotation;
+    _savedTranslateX = widget.slot.translateX;
+    _savedTranslateY = widget.slot.translateY;
+    _savedScale = widget.slot.scale;
+    _savedRotation = widget.slot.rotation;
   }
 
   // ── Actions ──────────────────────────────────────────────────
 
-  /// Snaps transform back to the ML auto-fit recommendation.
+  /// Resets transform to last saved DB values.
   void _handleReset() {
     setState(() {
-      _translateX = _autoTranslateX;
-      _translateY = _autoTranslateY;
-      _scale = 1.0;
-      _rotation = _autoRotation;
+      _translateX = _savedTranslateX;
+      _translateY = _savedTranslateY;
+      _scale = _savedScale;
+      _rotation = _savedRotation;
     });
   }
 
-  /// Persists the current transform to the DB and pops the screen.
+  /// Re-centers transform to MLKit auto-detected framing.
+  ///
+  /// Uses current slot landmarks to recompute auto-fit without
+  /// re-running detector.
+  void _handleRecenter() {
+    final autoFit = _computeAutoFitFromCurrentSlot();
+    setState(() {
+      _translateX = autoFit.translateX;
+      _translateY = autoFit.translateY;
+      _scale = autoFit.scale;
+      _rotation = autoFit.rotation;
+    });
+  }
+
+  /// Computes MLKit-like auto-fit from current slot metadata.
+  AutoFit _computeAutoFitFromCurrentSlot() {
+    final hasEyes =
+        _currentSlot.eyeLeftX != null &&
+        _currentSlot.eyeLeftY != null &&
+        _currentSlot.eyeRightX != null &&
+        _currentSlot.eyeRightY != null;
+    if (!hasEyes) return AutoFit.identity;
+    return FaceAligner.computeAutoFit(
+      eyes: EyeLandmarks(
+        leftX: _currentSlot.eyeLeftX!,
+        leftY: _currentSlot.eyeLeftY!,
+        rightX: _currentSlot.eyeRightX!,
+        rightY: _currentSlot.eyeRightY!,
+      ),
+      sourceWidth: _currentSlot.sourceWidth,
+      sourceHeight: _currentSlot.sourceHeight,
+    );
+  }
+
+  /// Persists the current transform to the DB, regenerates all
+  /// thumbnails to reflect the new framing, then pops the screen.
   Future<void> _handleSave() async {
     if (_saving) return;
     setState(() => _saving = true);
@@ -124,6 +162,29 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
       scale: _scale,
       rotation: _rotation,
     );
+
+    // Regenerate thumbnails so list and detail views reflect the
+    // updated transform without needing to re-render from full res.
+    try {
+      await ImageStorage.generateThumbnails(
+        relPath: _currentSlot.imagePath,
+        params: SlotTransformParams(
+          sourceWidth: _currentSlot.sourceWidth,
+          sourceHeight: _currentSlot.sourceHeight,
+          translateX: _translateX,
+          translateY: _translateY,
+          scale: _scale,
+          rotation: _rotation,
+          eyeLeftX: _currentSlot.eyeLeftX,
+          eyeLeftY: _currentSlot.eyeLeftY,
+          eyeRightX: _currentSlot.eyeRightX,
+          eyeRightY: _currentSlot.eyeRightY,
+        ),
+      );
+    } catch (_) {
+      // Thumbnail regeneration is best-effort; transform is already
+      // persisted and the full-resolution image remains usable.
+    }
 
     if (mounted) Navigator.of(context).pop();
   }
@@ -138,7 +199,8 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
     );
     if (picked == null || !mounted) return;
 
-    // Delete old file from disk.
+    // Delete old file and its thumbnails from disk.
+    await ImageStorage.deleteThumbnails(_currentSlot.imagePath);
     await ImageStorage.deleteSlotFile(_currentSlot.imagePath);
 
     // Copy new file into the app sandbox.
@@ -189,14 +251,39 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
     // widget tree always loads the freshly copied file.
     await FileImage(File(absPath)).evict();
 
+    // Generate thumbnails for the new image + auto-fit transform.
+    try {
+      await ImageStorage.generateThumbnails(
+        relPath: newRelPath,
+        params: SlotTransformParams(
+          sourceWidth: srcW,
+          sourceHeight: srcH,
+          translateX: autoFit.translateX,
+          translateY: autoFit.translateY,
+          scale: autoFit.scale,
+          rotation: autoFit.rotation,
+          eyeLeftX: eyes?.leftX,
+          eyeLeftY: eyes?.leftY,
+          eyeRightX: eyes?.rightX,
+          eyeRightY: eyes?.rightY,
+        ),
+      );
+    } catch (_) {
+      // Best-effort; full-resolution image remains usable.
+    }
+
     final updated = await _repo.getOne(widget.gazeId, widget.slotKey);
     if (updated != null && mounted) {
       setState(() {
         _currentSlot = updated;
         _translateX = autoFit.translateX;
         _translateY = autoFit.translateY;
-        _scale = 1.0;
+        _scale = autoFit.scale;
         _rotation = autoFit.rotation;
+        _savedTranslateX = autoFit.translateX;
+        _savedTranslateY = autoFit.translateY;
+        _savedScale = autoFit.scale;
+        _savedRotation = autoFit.rotation;
       });
     }
   }
@@ -274,24 +361,6 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: _handleReset,
-            child: Text(
-              'Reset',
-              style: GoogleFonts.bricolageGrotesque(
-                color: kWhite.withValues(alpha: 0.6),
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: _handleReplaceImage,
-            child: Text(
-              'Replace',
-              style: GoogleFonts.bricolageGrotesque(
-                color: kWhite.withValues(alpha: 0.6),
-              ),
-            ),
-          ),
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: TextButton(
@@ -306,6 +375,71 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
             ),
           ),
         ],
+      ),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Pinch to zoom · Drag to pan · Twist to rotate',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.bricolageGrotesque(
+                  color: kWhite.withValues(alpha: 0.35),
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _saving ? null : _handleReset,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: kWhite.withValues(alpha: 0.8),
+                        side: BorderSide(
+                          color: kWhite.withValues(alpha: 0.15),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: const Text('Reset'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _saving ? null : _handleRecenter,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: kWhite.withValues(alpha: 0.8),
+                        side: BorderSide(
+                          color: kWhite.withValues(alpha: 0.15),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: const Text('Recenter'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _saving ? null : _handleReplaceImage,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: kWhite.withValues(alpha: 0.8),
+                        side: BorderSide(
+                          color: kWhite.withValues(alpha: 0.15),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: const Text('Replace'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
       body: Column(
         children: [
@@ -354,21 +488,6 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
             ),
           ),
 
-          // ── Hint bar ─────────────────────────────────────
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(
-                'Pinch to zoom · Drag to pan · Twist to rotate',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.bricolageGrotesque(
-                  color: kWhite.withValues(alpha: 0.35),
-                  fontSize: 12,
-                ),
-              ),
-            ),
-          ),
         ],
       ),
     );
