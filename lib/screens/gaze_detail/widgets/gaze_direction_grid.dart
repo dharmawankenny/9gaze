@@ -15,6 +15,7 @@
 // in normal mode and independently draggable/droppable in edit mode.
 
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -47,8 +48,14 @@ class GazeDirectionGrid extends StatefulWidget {
     this.isEditMode = false,
     this.onDoublePrimaryEnabled,
     this.onSaveEdits,
+    this.onPendingReorderChanged,
     this.onCommitEditsBound,
+    this.onSaveReposition,
+    this.onPendingRepositionChanged,
+    this.onCommitRepositionBound,
     this.overlayBuilder,
+    this.isCellTapEnabled = true,
+    this.isRepositionMode = false,
   });
 
   /// ID of the parent [Gaze] row.
@@ -63,6 +70,12 @@ class GazeDirectionGrid extends StatefulWidget {
   /// When true, cells are draggable; taps for pick/edit are disabled.
   final bool isEditMode;
 
+  /// When true, cells support per-slot pan/pinch transform editing.
+  final bool isRepositionMode;
+
+  /// When false, cell taps are ignored (no picker/editor open).
+  final bool isCellTapEnabled;
+
   /// Called when a bulk pick fills both primary slots.
   final VoidCallback? onDoublePrimaryEnabled;
 
@@ -72,10 +85,22 @@ class GazeDirectionGrid extends StatefulWidget {
   /// for every row that changed position. The parent is responsible
   /// for calling [GazeSlotsRepository.reorderSlots] with this map.
   final void Function(Map<int, String> changes)? onSaveEdits;
+  final void Function(Map<int, String> changes)? onPendingReorderChanged;
+
+  /// Called when reposition save is committed.
+  ///
+  /// Receives map of slot DB id -> target transform values.
+  final void Function(Map<int, SlotTransformPatch> updates)? onSaveReposition;
+  final void Function(Map<int, SlotTransformPatch> updates)?
+      onPendingRepositionChanged;
 
   /// Called once during initState with a callback that the parent
   /// can invoke to trigger [commitEdits] from outside the widget.
   final void Function(VoidCallback trigger)? onCommitEditsBound;
+
+  /// Called once during initState with a callback that the parent
+  /// can invoke to trigger [commitReposition] from outside widget.
+  final void Function(VoidCallback trigger)? onCommitRepositionBound;
 
   /// Optional top overlay layer rendered above all slot cells.
   ///
@@ -103,6 +128,10 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
   /// Which cell the user is currently hovering a drag over.
   SlotKey? _dragOverKey;
 
+  /// Pending per-slot transform patches while in reposition mode.
+  Map<int, SlotTransformPatch>? _pendingRepositionById;
+  Map<int, SlotTransformPatch>? _repositionOriginalById;
+
   @override
   void initState() {
     super.initState();
@@ -111,6 +140,7 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
     // Bind the commitEdits trigger so the parent's Save button can
     // call it without needing access to private state.
     widget.onCommitEditsBound?.call(commitEdits);
+    widget.onCommitRepositionBound?.call(commitReposition);
   }
 
   @override
@@ -124,6 +154,9 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
     if (old.onCommitEditsBound != widget.onCommitEditsBound) {
       widget.onCommitEditsBound?.call(commitEdits);
     }
+    if (old.onCommitRepositionBound != widget.onCommitRepositionBound) {
+      widget.onCommitRepositionBound?.call(commitReposition);
+    }
     // Entering edit mode: snapshot current DB state into pending map.
     if (!old.isEditMode && widget.isEditMode) {
       _pendingSlotMap = null; // will be set on first stream snapshot
@@ -132,6 +165,16 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
     if (old.isEditMode && !widget.isEditMode) {
       _pendingSlotMap = null;
       _dragOverKey = null;
+      widget.onPendingReorderChanged?.call({});
+    }
+    if (!old.isRepositionMode && widget.isRepositionMode) {
+      _pendingRepositionById = null; // init from snapshot on first build
+      _repositionOriginalById = null;
+    }
+    if (old.isRepositionMode && !widget.isRepositionMode) {
+      _pendingRepositionById = null;
+      _repositionOriginalById = null;
+      widget.onPendingRepositionChanged?.call({});
     }
   }
 
@@ -164,6 +207,7 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
     map[keyA] = map[keyB];
     map[keyB] = tmp;
     setState(() => _dragOverKey = null);
+    widget.onPendingReorderChanged?.call(_buildReorderChanges(map));
   }
 
   /// Computes pending changes and fires [onSaveEdits] callback.
@@ -174,8 +218,37 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
     final pending = _pendingSlotMap;
     if (pending == null) return;
 
+    final targetKeyById = _buildReorderChanges(pending);
+
+    _pendingSlotMap = null;
+    if (targetKeyById.isNotEmpty) {
+      widget.onSaveEdits?.call(targetKeyById);
+    }
+  }
+
+  void _initRepositionPendingIfNeeded(List<GazeSlot> dbSlots) {
+    if (_pendingRepositionById != null) return;
+    _repositionOriginalById = {
+      for (final slot in dbSlots)
+        slot.id: SlotTransformPatch(
+          translateX: slot.translateX,
+          translateY: slot.translateY,
+          scale: slot.scale,
+          rotation: slot.rotation,
+        ),
+    };
+    _pendingRepositionById = {};
+  }
+
+  void commitReposition() {
+    final pending = _pendingRepositionById;
+    if (pending == null) return;
+    widget.onSaveReposition?.call(Map<int, SlotTransformPatch>.from(pending));
+  }
+
+  Map<int, String> _buildReorderChanges(Map<SlotKey, GazeSlot?> map) {
     final targetKeyById = <int, String>{};
-    for (final entry in pending.entries) {
+    for (final entry in map.entries) {
       final slot = entry.value;
       if (slot == null) continue;
       final targetKey = entry.key.name;
@@ -183,11 +256,7 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
         targetKeyById[slot.id] = targetKey;
       }
     }
-
-    _pendingSlotMap = null;
-    if (targetKeyById.isNotEmpty) {
-      widget.onSaveEdits?.call(targetKeyById);
-    }
+    return targetKeyById;
   }
 
   // ── Slot pick pipeline ───────────────────────────────────────
@@ -202,6 +271,7 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
     GazeSlot? existing,
     Map<String, GazeSlot> slotMap,
   ) async {
+    if (!widget.isCellTapEnabled) return;
     if (_pickingInProgress.isNotEmpty) return;
 
     if (existing != null) {
@@ -416,6 +486,10 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
                 }
               : dbSlotMap;
 
+          if (widget.isRepositionMode) {
+            _initRepositionPendingIfNeeded(dbSlots);
+          }
+
           return LayoutBuilder(
             builder: (context, constraints) {
               final cellSize = constraints.maxWidth / 3;
@@ -461,6 +535,15 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
 
                 if (widget.isEditMode) {
                   return _buildDragCell(
+                    key: key,
+                    slot: slot,
+                    size: cellSize,
+                    height: cellHeight,
+                  );
+                }
+
+                if (widget.isRepositionMode) {
+                  return _buildRepositionCell(
                     key: key,
                     slot: slot,
                     size: cellSize,
@@ -586,6 +669,187 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
             height: halfH,
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildRepositionCell({
+    required SlotKey key,
+    required GazeSlot? slot,
+    required double size,
+    required double height,
+  }) {
+    if (slot == null) {
+      return _GazeCell(
+        key: ValueKey('${key.name}_reposition_empty'),
+        direction: kSlotKeyToDirection[key]!,
+        slotKey: key,
+        size: size,
+        height: height,
+        slot: null,
+        isPicking: false,
+        onTap: () {},
+      );
+    }
+    return _RepositionCell(
+      slot: slot,
+      size: size,
+      height: height,
+      patch: _pendingRepositionById?[slot.id] ?? _repositionOriginalById?[slot.id],
+      onPatchChanged: (patch) {
+        final map = _pendingRepositionById;
+        final original = _repositionOriginalById?[slot.id];
+        if (map == null || original == null) return;
+        if (_samePatch(patch, original)) {
+          map.remove(slot.id);
+        } else {
+          map[slot.id] = patch;
+        }
+        widget.onPendingRepositionChanged?.call(
+          Map<int, SlotTransformPatch>.from(map),
+        );
+      },
+    );
+  }
+
+  bool _samePatch(SlotTransformPatch a, SlotTransformPatch b) {
+    const eps = 0.000001;
+    return (a.translateX - b.translateX).abs() <= eps &&
+        (a.translateY - b.translateY).abs() <= eps &&
+        (a.scale - b.scale).abs() <= eps &&
+        (a.rotation - b.rotation).abs() <= eps;
+  }
+}
+
+class SlotTransformPatch {
+  const SlotTransformPatch({
+    required this.translateX,
+    required this.translateY,
+    required this.scale,
+    required this.rotation,
+  });
+
+  final double translateX;
+  final double translateY;
+  final double scale;
+  final double rotation;
+}
+
+class _RepositionCell extends StatefulWidget {
+  const _RepositionCell({
+    required this.slot,
+    required this.size,
+    required this.height,
+    required this.patch,
+    required this.onPatchChanged,
+  });
+
+  final GazeSlot slot;
+  final double size;
+  final double height;
+  final SlotTransformPatch? patch;
+  final ValueChanged<SlotTransformPatch> onPatchChanged;
+
+  @override
+  State<_RepositionCell> createState() => _RepositionCellState();
+}
+
+class _RepositionCellState extends State<_RepositionCell> {
+  late double _startScale;
+  late double _startTx;
+  late double _startTy;
+  late Offset _startFocal;
+  late SlotTransformPatch _activePatch;
+
+  @override
+  void initState() {
+    super.initState();
+    _activePatch = widget.patch ??
+        SlotTransformPatch(
+          translateX: widget.slot.translateX,
+          translateY: widget.slot.translateY,
+          scale: widget.slot.scale,
+          rotation: widget.slot.rotation,
+        );
+  }
+
+  @override
+  void didUpdateWidget(covariant _RepositionCell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Keep local preview in sync when slot identity changes or when
+    // parent pushes a fresh patch snapshot.
+    if (oldWidget.slot.id != widget.slot.id) {
+      _activePatch = widget.patch ??
+          SlotTransformPatch(
+            translateX: widget.slot.translateX,
+            translateY: widget.slot.translateY,
+            scale: widget.slot.scale,
+            rotation: widget.slot.rotation,
+          );
+      return;
+    }
+    if (widget.patch != null && oldWidget.patch != widget.patch) {
+      _activePatch = widget.patch!;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final slot = widget.slot;
+    final patch = _activePatch;
+    return GestureDetector(
+      onScaleStart: (d) {
+        _startScale = patch.scale;
+        _startTx = patch.translateX;
+        _startTy = patch.translateY;
+        _startFocal = d.focalPoint;
+      },
+      onScaleUpdate: (d) {
+        final sw = slot.sourceWidth.toDouble();
+        final sh = slot.sourceHeight.toDouble();
+        final fw = widget.size;
+        final fh = widget.height;
+
+        final hasEyes = slot.eyeLeftX != null;
+        double baseScale;
+        if (hasEyes) {
+          final elx = slot.eyeLeftX! * sw;
+          final ely = slot.eyeLeftY! * sh;
+          final erx = slot.eyeRightX! * sw;
+          final ery = slot.eyeRightY! * sh;
+          final span = math.sqrt(math.pow(erx - elx, 2) + math.pow(ery - ely, 2));
+          baseScale = span > 0 ? fw / span : fw / sw;
+        } else {
+          baseScale = math.max(fw / sw, fh / sh);
+        }
+
+        final totalScale = baseScale * _startScale;
+        final dx = d.focalPoint.dx - _startFocal.dx;
+        final dy = d.focalPoint.dy - _startFocal.dy;
+        final nextTx = (_startTx - dx / (totalScale * sw)).clamp(0.0, 1.0);
+        final nextTy = (_startTy - dy / (totalScale * sh)).clamp(0.0, 1.0);
+        final nextScale = (_startScale * d.scale).clamp(0.2, 10.0);
+
+        final nextPatch = SlotTransformPatch(
+          translateX: nextTx,
+          translateY: nextTy,
+          scale: nextScale,
+          rotation: patch.rotation,
+        );
+        widget.onPatchChanged(nextPatch);
+        setState(() => _activePatch = nextPatch);
+      },
+      child: SizedBox(
+        width: widget.size,
+        height: widget.height,
+        child: GazeSlotImage(
+          slot: slot,
+          renderSize: Size(widget.size, widget.height),
+          overrideTranslateX: patch.translateX,
+          overrideTranslateY: patch.translateY,
+          overrideScale: patch.scale,
+          overrideRotation: patch.rotation,
+        ),
       ),
     );
   }

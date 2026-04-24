@@ -292,7 +292,6 @@ class GazeExporter {
       ui.ParagraphStyle(
         textAlign: TextAlign.left,
         fontSize: fontSize,
-        maxLines: 1,
       ),
     )..pushStyle(
         ui.TextStyle(
@@ -302,13 +301,18 @@ class GazeExporter {
       );
     builder.addText(overlay.content);
     final paragraph = builder.build()
-      ..layout(const ui.ParagraphConstraints(width: 2000));
+      ..layout(ui.ParagraphConstraints(width: canvasW * 0.9));
 
     final bg = overlay.bgColor == null
         ? null
         : (Paint()..color = ui.Color(overlay.bgColor!));
     if (bg != null) {
-      final rect = Rect.fromLTWH(x, y, paragraph.maxIntrinsicWidth + 12, paragraph.height + 6);
+      final rect = Rect.fromLTWH(
+        x,
+        y,
+        paragraph.longestLine + 12,
+        paragraph.height + 6,
+      );
       canvas.drawRect(rect, bg);
     }
     canvas.drawParagraph(paragraph, Offset(x + 6, y + 3));

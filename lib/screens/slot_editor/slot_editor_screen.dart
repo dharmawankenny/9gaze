@@ -189,6 +189,14 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
     if (mounted) Navigator.of(context).pop();
   }
 
+  bool get _hasUnsavedTransform {
+    const eps = 0.000001;
+    return (_translateX - _savedTranslateX).abs() > eps ||
+        (_translateY - _savedTranslateY).abs() > eps ||
+        (_scale - _savedScale).abs() > eps ||
+        (_rotation - _savedRotation).abs() > eps;
+  }
+
   /// Allows the user to pick a new photo from gallery, re-running
   /// ML detection and replacing the current slot image.
   Future<void> _handleReplaceImage() async {
@@ -364,11 +372,13 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: TextButton(
-              onPressed: _saving ? null : _handleSave,
+              onPressed: (_saving || !_hasUnsavedTransform) ? null : _handleSave,
               child: Text(
                 _saving ? 'Saving…' : 'Save',
                 style: GoogleFonts.bricolageGrotesque(
-                  color: kAccentBlue,
+                  color: (_saving || !_hasUnsavedTransform)
+                      ? kWhite.withValues(alpha: 0.35)
+                      : kAccentBlue,
                   fontWeight: FontWeight.w700,
                 ),
               ),
