@@ -3,6 +3,7 @@
 // allows editing and writes changes back to the DB.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:google_fonts/google_fonts.dart';
 
@@ -63,6 +64,18 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
   /// Callback set by the grid to let this screen trigger commitEdits.
   VoidCallback? _commitEdits;
   VoidCallback? _commitReposition;
+  VoidCallback? _undoReposition;
+  VoidCallback? _redoReposition;
+  VoidCallback? _undoRearrange;
+  VoidCallback? _redoRearrange;
+
+  /// Undo/redo availability in reposition mode.
+  bool _canUndoReposition = false;
+  bool _canRedoReposition = false;
+
+  /// Undo/redo availability in rearrange mode.
+  bool _canUndoRearrange = false;
+  bool _canRedoRearrange = false;
 
   /// Slot key updates captured from grid commit.
   Map<int, String> _pendingSlotChanges = {};
@@ -221,18 +234,29 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
     _pendingRepositionChanges = updates;
   }
 
-  void _capturePendingRepositionChanges(Map<int, SlotTransformPatch> updates) {
+  void _setStateSafely(VoidCallback fn) {
     if (!mounted) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      setState(() => _pendingRepositionChanges = updates);
-    });
+    final phase = SchedulerBinding.instance.schedulerPhase;
+    if (phase == SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(fn);
+      });
+      return;
+    }
+    setState(fn);
+  }
+
+  void _capturePendingRepositionChanges(Map<int, SlotTransformPatch> updates) {
+    _setStateSafely(() => _pendingRepositionChanges = updates);
   }
 
   void _handleEnterRepositionMode() {
     if (_savingEdits) return;
     setState(() {
       _pendingRepositionChanges = {};
+      _canUndoReposition = false;
+      _canRedoReposition = false;
       _editStage = _EditStage.reposition;
     });
   }
@@ -241,6 +265,8 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
     if (_savingEdits) return;
     setState(() {
       _pendingRepositionChanges = {};
+      _canUndoReposition = false;
+      _canRedoReposition = false;
       _editStage = _EditStage.menu;
     });
   }
@@ -291,6 +317,8 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
       // so UI stays in full-resolution rendering while save is in-flight.
       setState(() {
         _pendingRepositionChanges = {};
+        _canUndoReposition = false;
+        _canRedoReposition = false;
         _editStage = _EditStage.menu;
       });
     } finally {
@@ -336,6 +364,8 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
     if (_savingEdits) return;
     setState(() {
       _pendingSlotChanges = {};
+      _canUndoRearrange = false;
+      _canRedoRearrange = false;
       _editStage = _EditStage.rearrange;
     });
   }
@@ -345,6 +375,8 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
     setState(() {
       // Grid pending map resets when isEditMode flips true -> false.
       _pendingSlotChanges = {};
+      _canUndoRearrange = false;
+      _canRedoRearrange = false;
       _editStage = _EditStage.menu;
     });
   }
@@ -360,6 +392,8 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
       if (!mounted) return;
       setState(() {
         _pendingSlotChanges = {};
+        _canUndoRearrange = false;
+        _canRedoRearrange = false;
         _editStage = _EditStage.menu;
       });
     } finally {
@@ -391,11 +425,7 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
   }
 
   void _capturePendingReorderChanges(Map<int, String> changes) {
-    if (!mounted) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      setState(() => _pendingSlotChanges = changes);
-    });
+    _setStateSafely(() => _pendingSlotChanges = changes);
   }
 
   Future<void> _handleSaveTextMode() async {
@@ -815,6 +845,67 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
         .toList();
   }
 
+  /// Builds the undo/redo bottom bar shown during reposition/rearrange.
+  Widget _buildEditUndoRedoBar({
+    required bool canUndo,
+    required bool canRedo,
+    required VoidCallback? onUndo,
+    required VoidCallback? onRedo,
+  }) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            OutlinedButton.icon(
+              onPressed: canUndo ? onUndo : null,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: canUndo ? kWhite : kWhite.withValues(alpha: 0.3),
+                side: BorderSide(
+                  color: canUndo
+                      ? kWhite.withValues(alpha: 0.5)
+                      : kWhite.withValues(alpha: 0.15),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(50),
+                ),
+              ),
+              icon: const Icon(Icons.undo, size: 18),
+              label: const Text('Undo'),
+            ),
+            const SizedBox(width: 16),
+            OutlinedButton.icon(
+              onPressed: canRedo ? onRedo : null,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: canRedo ? kWhite : kWhite.withValues(alpha: 0.3),
+                side: BorderSide(
+                  color: canRedo
+                      ? kWhite.withValues(alpha: 0.5)
+                      : kWhite.withValues(alpha: 0.15),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(50),
+                ),
+              ),
+              icon: const Icon(Icons.redo, size: 18),
+              label: const Text('Redo'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -822,8 +913,20 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
           ? _buildEditBottomPanel()
           : _isEditMenuMode
           ? _buildEditMenuBottomBar()
-          : _isRearrangeMode || _isRepositionMode
-          ? const SizedBox.shrink()
+          : _isRepositionMode
+          ? _buildEditUndoRedoBar(
+              canUndo: _canUndoReposition,
+              canRedo: _canRedoReposition,
+              onUndo: _undoReposition,
+              onRedo: _redoReposition,
+            )
+          : _isRearrangeMode
+          ? _buildEditUndoRedoBar(
+              canUndo: _canUndoRearrange,
+              canRedo: _canRedoRearrange,
+              onUndo: _undoRearrange,
+              onRedo: _redoRearrange,
+            )
           : SafeArea(
               child: Padding(
                 padding: const EdgeInsets.symmetric(
@@ -1049,6 +1152,22 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
               onPendingRepositionChanged: _capturePendingRepositionChanges,
               onCommitEditsBound: (fn) => _commitEdits = fn,
               onCommitRepositionBound: (fn) => _commitReposition = fn,
+              onUndoRepositionBound: (fn) => _undoReposition = fn,
+              onRedoRepositionBound: (fn) => _redoReposition = fn,
+              onUndoRearrangeBound: (fn) => _undoRearrange = fn,
+              onRedoRearrangeBound: (fn) => _redoRearrange = fn,
+              onRearrangeUndoRedoChanged: (canUndo, canRedo) {
+                _setStateSafely(() {
+                  _canUndoRearrange = canUndo;
+                  _canRedoRearrange = canRedo;
+                });
+              },
+              onRepositionUndoRedoChanged: (canUndo, canRedo) {
+                _setStateSafely(() {
+                  _canUndoReposition = canUndo;
+                  _canRedoReposition = canRedo;
+                });
+              },
               overlayBuilder: _buildOverlayLayer,
             ),
 

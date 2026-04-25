@@ -30,6 +30,7 @@ import 'package:kensa_9gaze/screens/slot_editor/slot_editor_screen.dart';
 import 'package:kensa_9gaze/services/face_aligner.dart';
 import 'package:kensa_9gaze/services/image_storage.dart';
 import 'package:kensa_9gaze/services/thumbnail_renderer.dart';
+import 'package:kensa_9gaze/utils/undo_redo_stack.dart';
 import 'package:kensa_9gaze/widgets/animated_gaze_face.dart';
 import 'package:kensa_9gaze/widgets/gaze_slot_image.dart';
 
@@ -49,6 +50,7 @@ class GazeDirectionGrid extends StatefulWidget {
     this.onDoublePrimaryEnabled,
     this.onSaveEdits,
     this.onPendingReorderChanged,
+    this.onRearrangeUndoRedoChanged,
     this.onCommitEditsBound,
     this.onSaveReposition,
     this.onPendingRepositionChanged,
@@ -56,6 +58,11 @@ class GazeDirectionGrid extends StatefulWidget {
     this.overlayBuilder,
     this.isCellTapEnabled = true,
     this.isRepositionMode = false,
+    this.onRepositionUndoRedoChanged,
+    this.onUndoRepositionBound,
+    this.onRedoRepositionBound,
+    this.onUndoRearrangeBound,
+    this.onRedoRearrangeBound,
   });
 
   /// ID of the parent [Gaze] row.
@@ -87,6 +94,9 @@ class GazeDirectionGrid extends StatefulWidget {
   final void Function(Map<int, String> changes)? onSaveEdits;
   final void Function(Map<int, String> changes)? onPendingReorderChanged;
 
+  /// Fired whenever undo/redo availability changes in rearrange mode.
+  final void Function(bool canUndo, bool canRedo)? onRearrangeUndoRedoChanged;
+
   /// Called when reposition save is committed.
   ///
   /// Receives map of slot DB id -> target transform values.
@@ -101,6 +111,16 @@ class GazeDirectionGrid extends StatefulWidget {
   /// Called once during initState with a callback that the parent
   /// can invoke to trigger [commitReposition] from outside widget.
   final void Function(VoidCallback trigger)? onCommitRepositionBound;
+
+  /// Fired whenever undo/redo availability changes in reposition mode.
+  final void Function(bool canUndo, bool canRedo)?
+      onRepositionUndoRedoChanged;
+
+  /// Binds external undo/redo triggers to grid state methods.
+  final void Function(VoidCallback trigger)? onUndoRepositionBound;
+  final void Function(VoidCallback trigger)? onRedoRepositionBound;
+  final void Function(VoidCallback trigger)? onUndoRearrangeBound;
+  final void Function(VoidCallback trigger)? onRedoRearrangeBound;
 
   /// Optional top overlay layer rendered above all slot cells.
   ///
@@ -128,19 +148,32 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
   /// Which cell the user is currently hovering a drag over.
   SlotKey? _dragOverKey;
 
+  /// Single undo/redo stack across all slots in rearrange mode.
+  final UndoRedoStack<Map<SlotKey, GazeSlot?>> _rearrangeHistory =
+      UndoRedoStack();
+
   /// Pending per-slot transform patches while in reposition mode.
   Map<int, SlotTransformPatch>? _pendingRepositionById;
   Map<int, SlotTransformPatch>? _repositionOriginalById;
+
+  /// Single undo/redo stack across all slots in reposition mode.
+  ///
+  /// Each entry is a full snapshot of all pending patches so that
+  /// undo/redo restores complete multi-slot state atomically.
+  final UndoRedoStack<Map<int, SlotTransformPatch>> _repositionHistory =
+      UndoRedoStack();
 
   @override
   void initState() {
     super.initState();
     _slotsRepo = GazeSlotsRepository(appDatabase);
     _stream = _slotsRepo.watchAllForGaze(widget.gazeId);
-    // Bind the commitEdits trigger so the parent's Save button can
-    // call it without needing access to private state.
     widget.onCommitEditsBound?.call(commitEdits);
     widget.onCommitRepositionBound?.call(commitReposition);
+    widget.onUndoRepositionBound?.call(undoReposition);
+    widget.onRedoRepositionBound?.call(redoReposition);
+    widget.onUndoRearrangeBound?.call(undoRearrange);
+    widget.onRedoRearrangeBound?.call(redoRearrange);
   }
 
   @override
@@ -157,24 +190,44 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
     if (old.onCommitRepositionBound != widget.onCommitRepositionBound) {
       widget.onCommitRepositionBound?.call(commitReposition);
     }
+    if (old.onUndoRepositionBound != widget.onUndoRepositionBound) {
+      widget.onUndoRepositionBound?.call(undoReposition);
+    }
+    if (old.onRedoRepositionBound != widget.onRedoRepositionBound) {
+      widget.onRedoRepositionBound?.call(redoReposition);
+    }
+    if (old.onUndoRearrangeBound != widget.onUndoRearrangeBound) {
+      widget.onUndoRearrangeBound?.call(undoRearrange);
+    }
+    if (old.onRedoRearrangeBound != widget.onRedoRearrangeBound) {
+      widget.onRedoRearrangeBound?.call(redoRearrange);
+    }
     // Entering edit mode: snapshot current DB state into pending map.
     if (!old.isEditMode && widget.isEditMode) {
       _pendingSlotMap = null; // will be set on first stream snapshot
+      _rearrangeHistory.clear();
+      _notifyRearrangeUndoRedo();
     }
     // Leaving edit mode without saving: discard pending changes.
     if (old.isEditMode && !widget.isEditMode) {
       _pendingSlotMap = null;
       _dragOverKey = null;
+      _rearrangeHistory.clear();
       widget.onPendingReorderChanged?.call({});
+      _notifyRearrangeUndoRedo();
     }
     if (!old.isRepositionMode && widget.isRepositionMode) {
-      _pendingRepositionById = null; // init from snapshot on first build
+      _pendingRepositionById = null;
       _repositionOriginalById = null;
+      _repositionHistory.clear();
+      _notifyUndoRedo();
     }
     if (old.isRepositionMode && !widget.isRepositionMode) {
       _pendingRepositionById = null;
       _repositionOriginalById = null;
+      _repositionHistory.clear();
       widget.onPendingRepositionChanged?.call({});
+      _notifyUndoRedo();
     }
   }
 
@@ -185,6 +238,7 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
     _pendingSlotMap = {
       for (final key in _allEditableKeys()) key: dbSlotMap[key.name],
     };
+    _notifyRearrangeUndoRedo();
   }
 
   /// All slot keys that can participate in drag-swap, including the
@@ -203,11 +257,13 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
     if (keyA == keyB) return;
     final map = _pendingSlotMap;
     if (map == null) return;
+    _rearrangeHistory.push(Map<SlotKey, GazeSlot?>.from(map));
     final tmp = map[keyA];
     map[keyA] = map[keyB];
     map[keyB] = tmp;
     setState(() => _dragOverKey = null);
     widget.onPendingReorderChanged?.call(_buildReorderChanges(map));
+    _notifyRearrangeUndoRedo();
   }
 
   /// Computes pending changes and fires [onSaveEdits] callback.
@@ -221,9 +277,40 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
     final targetKeyById = _buildReorderChanges(pending);
 
     _pendingSlotMap = null;
+    _rearrangeHistory.clear();
+    _notifyRearrangeUndoRedo();
     if (targetKeyById.isNotEmpty) {
       widget.onSaveEdits?.call(targetKeyById);
     }
+  }
+
+  void _notifyRearrangeUndoRedo() {
+    widget.onRearrangeUndoRedoChanged?.call(
+      _rearrangeHistory.canUndo,
+      _rearrangeHistory.canRedo,
+    );
+  }
+
+  void undoRearrange() {
+    final pending = _pendingSlotMap;
+    if (pending == null) return;
+    final prior = _rearrangeHistory.undo(Map<SlotKey, GazeSlot?>.from(pending));
+    if (prior == null) return;
+    _pendingSlotMap = Map<SlotKey, GazeSlot?>.from(prior);
+    widget.onPendingReorderChanged?.call(_buildReorderChanges(prior));
+    _notifyRearrangeUndoRedo();
+    setState(() => _dragOverKey = null);
+  }
+
+  void redoRearrange() {
+    final pending = _pendingSlotMap;
+    if (pending == null) return;
+    final next = _rearrangeHistory.redo(Map<SlotKey, GazeSlot?>.from(pending));
+    if (next == null) return;
+    _pendingSlotMap = Map<SlotKey, GazeSlot?>.from(next);
+    widget.onPendingReorderChanged?.call(_buildReorderChanges(next));
+    _notifyRearrangeUndoRedo();
+    setState(() => _dragOverKey = null);
   }
 
   void _initRepositionPendingIfNeeded(List<GazeSlot> dbSlots) {
@@ -244,6 +331,46 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
     final pending = _pendingRepositionById;
     if (pending == null) return;
     widget.onSaveReposition?.call(Map<int, SlotTransformPatch>.from(pending));
+  }
+
+  /// Fires the undo/redo availability callback with current state.
+  void _notifyUndoRedo() {
+    widget.onRepositionUndoRedoChanged?.call(
+      _repositionHistory.canUndo,
+      _repositionHistory.canRedo,
+    );
+  }
+
+  /// Reverts the last reposition gesture, restoring the prior state.
+  void undoReposition() {
+    final pending = _pendingRepositionById;
+    if (pending == null) return;
+    final prior = _repositionHistory.undo(
+      Map<int, SlotTransformPatch>.from(pending),
+    );
+    if (prior == null) return;
+    _pendingRepositionById = Map<int, SlotTransformPatch>.from(prior);
+    widget.onPendingRepositionChanged?.call(
+      Map<int, SlotTransformPatch>.from(prior),
+    );
+    _notifyUndoRedo();
+    setState(() {});
+  }
+
+  /// Reapplies the last undone reposition gesture.
+  void redoReposition() {
+    final pending = _pendingRepositionById;
+    if (pending == null) return;
+    final next = _repositionHistory.redo(
+      Map<int, SlotTransformPatch>.from(pending),
+    );
+    if (next == null) return;
+    _pendingRepositionById = Map<int, SlotTransformPatch>.from(next);
+    widget.onPendingRepositionChanged?.call(
+      Map<int, SlotTransformPatch>.from(next),
+    );
+    _notifyUndoRedo();
+    setState(() {});
   }
 
   Map<int, String> _buildReorderChanges(Map<SlotKey, GazeSlot?> map) {
@@ -748,6 +875,23 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
           Map<int, SlotTransformPatch>.from(map),
         );
       },
+      onPatchGestureEnd: (startPatch, endPatch) {
+        if (_samePatch(startPatch, endPatch)) return;
+        final map = _pendingRepositionById;
+        final original = _repositionOriginalById?[slot.id];
+        if (map == null || original == null) return;
+
+        // History entry is added only once when gesture ends.
+        // Reconstruct the pre-gesture snapshot for this slot and push it.
+        final snapshotBefore = Map<int, SlotTransformPatch>.from(map);
+        if (_samePatch(startPatch, original)) {
+          snapshotBefore.remove(slot.id);
+        } else {
+          snapshotBefore[slot.id] = startPatch;
+        }
+        _repositionHistory.push(snapshotBefore);
+        _notifyUndoRedo();
+      },
     );
   }
 
@@ -781,6 +925,7 @@ class _RepositionCell extends StatefulWidget {
     required this.height,
     required this.patch,
     required this.onPatchChanged,
+    required this.onPatchGestureEnd,
   });
 
   final GazeSlot slot;
@@ -788,6 +933,8 @@ class _RepositionCell extends StatefulWidget {
   final double height;
   final SlotTransformPatch? patch;
   final ValueChanged<SlotTransformPatch> onPatchChanged;
+  final void Function(SlotTransformPatch start, SlotTransformPatch end)
+      onPatchGestureEnd;
 
   @override
   State<_RepositionCell> createState() => _RepositionCellState();
@@ -799,11 +946,10 @@ class _RepositionCellState extends State<_RepositionCell> {
   late double _startTy;
   late Offset _startFocal;
   late SlotTransformPatch _activePatch;
+  late SlotTransformPatch _gestureStartPatch;
 
-  @override
-  void initState() {
-    super.initState();
-    _activePatch = widget.patch ??
+  SlotTransformPatch _resolvePatchFromWidget() {
+    return widget.patch ??
         SlotTransformPatch(
           translateX: widget.slot.translateX,
           translateY: widget.slot.translateY,
@@ -812,23 +958,27 @@ class _RepositionCellState extends State<_RepositionCell> {
         );
   }
 
+  bool _samePatch(SlotTransformPatch a, SlotTransformPatch b) {
+    const eps = 0.000001;
+    return (a.translateX - b.translateX).abs() <= eps &&
+        (a.translateY - b.translateY).abs() <= eps &&
+        (a.scale - b.scale).abs() <= eps &&
+        (a.rotation - b.rotation).abs() <= eps;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _activePatch = _resolvePatchFromWidget();
+    _gestureStartPatch = _activePatch;
+  }
+
   @override
   void didUpdateWidget(covariant _RepositionCell oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Keep local preview in sync when slot identity changes or when
-    // parent pushes a fresh patch snapshot.
-    if (oldWidget.slot.id != widget.slot.id) {
-      _activePatch = widget.patch ??
-          SlotTransformPatch(
-            translateX: widget.slot.translateX,
-            translateY: widget.slot.translateY,
-            scale: widget.slot.scale,
-            rotation: widget.slot.rotation,
-          );
-      return;
-    }
-    if (widget.patch != null && oldWidget.patch != widget.patch) {
-      _activePatch = widget.patch!;
+    final nextPatch = _resolvePatchFromWidget();
+    if (!_samePatch(_activePatch, nextPatch)) {
+      _activePatch = nextPatch;
     }
   }
 
@@ -842,6 +992,7 @@ class _RepositionCellState extends State<_RepositionCell> {
         _startTx = patch.translateX;
         _startTy = patch.translateY;
         _startFocal = d.focalPoint;
+        _gestureStartPatch = patch;
       },
       onScaleUpdate: (d) {
         final sw = slot.sourceWidth.toDouble();
@@ -877,6 +1028,10 @@ class _RepositionCellState extends State<_RepositionCell> {
         );
         widget.onPatchChanged(nextPatch);
         setState(() => _activePatch = nextPatch);
+      },
+      onScaleEnd: (_) {
+        final endPatch = _activePatch;
+        widget.onPatchGestureEnd(_gestureStartPatch, endPatch);
       },
       child: SizedBox(
         width: widget.size,
