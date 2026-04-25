@@ -1,4 +1,5 @@
 // Gaze detail screen. Displays patient info as read-only text.
+import 'dart:async';
 // An 'Update' button in the header opens a bottom sheet that
 // allows editing and writes changes back to the DB.
 
@@ -18,6 +19,7 @@ import 'package:kensa_9gaze/screens/gaze_detail/widgets/gaze_direction_grid.dart
 import 'package:kensa_9gaze/services/gaze_exporter.dart';
 import 'package:kensa_9gaze/services/image_storage.dart';
 import 'package:kensa_9gaze/services/thumbnail_renderer.dart';
+import 'package:kensa_9gaze/utils/undo_redo_stack.dart';
 
 /// Detail view for a single [Gaze] entry.
 ///
@@ -87,6 +89,20 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
   int _overlayLocalIdSeed = -1;
   int? _selectedOverlayId;
 
+  /// Undo/redo history for text edit mode.
+  final UndoRedoStack<_TextEditorSnapshot> _textHistory = UndoRedoStack();
+  _TextEditorSnapshot? _textGestureStart;
+
+  /// Controlled input for selected overlay text.
+  final TextEditingController _textInputController = TextEditingController();
+  int? _textInputOverlayId;
+  bool _isSyncingTextInput = false;
+
+  /// Debounce typing so one typing burst becomes one history step.
+  Timer? _textInputDebounce;
+  _TextEditorSnapshot? _textTypingStart;
+
+
   @override
   void initState() {
     super.initState();
@@ -96,6 +112,13 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
     _current = widget.gaze;
     _compactMode = _current.isCompact;
     _dualPrimary = _current.isDoublePrimary;
+  }
+
+  @override
+  void dispose() {
+    _textInputDebounce?.cancel();
+    _textInputController.dispose();
+    super.dispose();
   }
 
   /// Persists both flag values to the DB, updating local state
@@ -198,6 +221,11 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
         _overlayDrafts = [];
         _overlayTextBaseline = [];
         _selectedOverlayId = null;
+        _textHistory.clear();
+        _textGestureStart = null;
+        _textInputDebounce?.cancel();
+        _textInputDebounce = null;
+        _textTypingStart = null;
         _pendingSlotChanges = {};
         _pendingRepositionChanges = {};
       });
@@ -225,6 +253,11 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
       _selectedOverlayId = _overlayDrafts.isEmpty
           ? null
           : _overlayDrafts.last.localId;
+      _textHistory.clear();
+      _textGestureStart = null;
+      _textInputDebounce?.cancel();
+      _textInputDebounce = null;
+      _textTypingStart = null;
       _pendingSlotChanges = {};
       _pendingRepositionChanges = {};
     });
@@ -334,6 +367,107 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
         (slot.rotation - patch.rotation).abs() > eps;
   }
 
+
+  bool get _canUndoText => _textHistory.canUndo;
+  bool get _canRedoText => _textHistory.canRedo;
+
+  _TextEditorSnapshot _captureTextSnapshot() {
+    return _TextEditorSnapshot(
+      drafts: _cloneDrafts(_overlayDrafts),
+      selectedOverlayId: _selectedOverlayId,
+    );
+  }
+
+  bool _sameTextSnapshot(_TextEditorSnapshot a, _TextEditorSnapshot b) {
+    if (a.selectedOverlayId != b.selectedOverlayId) return false;
+    if (a.drafts.length != b.drafts.length) return false;
+    const eps = 0.000001;
+    for (var i = 0; i < a.drafts.length; i++) {
+      final x = a.drafts[i];
+      final y = b.drafts[i];
+      if (x.localId != y.localId ||
+          x.text != y.text ||
+          (x.x - y.x).abs() > eps ||
+          (x.y - y.y).abs() > eps ||
+          (x.scale - y.scale).abs() > eps ||
+          x.textColor != y.textColor ||
+          x.bgColor != y.bgColor ||
+          x.zIndex != y.zIndex) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  void _restoreTextSnapshot(_TextEditorSnapshot snapshot) {
+    setState(() {
+      _overlayDrafts = _cloneDrafts(snapshot.drafts);
+      _selectedOverlayId = snapshot.selectedOverlayId;
+    });
+    _syncTextInputController();
+  }
+
+  void _pushTextHistoryIfChanged(_TextEditorSnapshot before) {
+    final after = _captureTextSnapshot();
+    if (_sameTextSnapshot(before, after)) return;
+    _textHistory.push(before);
+    _setStateSafely(() {});
+  }
+
+  void _syncTextInputController() {
+    final selected = _selectedOverlay;
+    final nextId = selected?.localId;
+    final nextText = selected?.text ?? '';
+    if (_textInputOverlayId == nextId && _textInputController.text == nextText) {
+      return;
+    }
+    _isSyncingTextInput = true;
+    _textInputOverlayId = nextId;
+    _textInputController.value = TextEditingValue(
+      text: nextText,
+      selection: TextSelection.collapsed(offset: nextText.length),
+    );
+    _isSyncingTextInput = false;
+  }
+
+  void _flushPendingTextInputHistory() {
+    _textInputDebounce?.cancel();
+    _textInputDebounce = null;
+    final before = _textTypingStart;
+    _textTypingStart = null;
+    if (before != null) {
+      _pushTextHistoryIfChanged(before);
+    }
+  }
+
+  void _scheduleTextInputHistoryPush() {
+    _textInputDebounce?.cancel();
+    _textInputDebounce = Timer(const Duration(milliseconds: 500), () {
+      _textInputDebounce = null;
+      final before = _textTypingStart;
+      _textTypingStart = null;
+      if (before != null) {
+        _pushTextHistoryIfChanged(before);
+      }
+    });
+  }
+
+  void _undoText() {
+    if (_savingEdits) return;
+    _flushPendingTextInputHistory();
+    final prior = _textHistory.undo(_captureTextSnapshot());
+    if (prior == null) return;
+    _restoreTextSnapshot(prior);
+  }
+
+  void _redoText() {
+    if (_savingEdits) return;
+    _flushPendingTextInputHistory();
+    final next = _textHistory.redo(_captureTextSnapshot());
+    if (next == null) return;
+    _restoreTextSnapshot(next);
+  }
+
   bool get _hasTextDraftChanges {
     if (_overlayDrafts.length != _overlayTextBaseline.length) return true;
     for (var i = 0; i < _overlayDrafts.length; i++) {
@@ -405,8 +539,14 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
     if (_savingEdits) return;
     setState(() {
       _overlayTextBaseline = _cloneDrafts(_overlayDrafts);
+      _textHistory.clear();
+      _textGestureStart = null;
+      _textInputDebounce?.cancel();
+      _textInputDebounce = null;
+      _textTypingStart = null;
       _editStage = _EditStage.text;
     });
+    _syncTextInputController();
   }
 
   void _handleCancelTextMode() {
@@ -416,8 +556,14 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
       _selectedOverlayId = _overlayDrafts.isEmpty
           ? null
           : _overlayDrafts.last.localId;
+      _textHistory.clear();
+      _textGestureStart = null;
+      _textInputDebounce?.cancel();
+      _textInputDebounce = null;
+      _textTypingStart = null;
       _editStage = _EditStage.menu;
     });
+    _syncTextInputController();
   }
 
   void _captureSlotEditChanges(Map<int, String> changes) {
@@ -430,6 +576,7 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
 
   Future<void> _handleSaveTextMode() async {
     if (_savingEdits) return;
+    _flushPendingTextInputHistory();
     setState(() => _savingEdits = true);
     try {
       final overlayRows = _overlayDrafts
@@ -453,6 +600,11 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
       if (!mounted) return;
       setState(() {
         _overlayTextBaseline = _cloneDrafts(_overlayDrafts);
+        _textHistory.clear();
+        _textGestureStart = null;
+        _textInputDebounce?.cancel();
+        _textInputDebounce = null;
+        _textTypingStart = null;
         _editStage = _EditStage.menu;
       });
     } finally {
@@ -483,6 +635,7 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
 
   void _handleAddOverlay() {
     if (!_isTextMode) return;
+    final before = _captureTextSnapshot();
     final draft = _OverlayDraft(
       localId: _overlayLocalIdSeed--,
       text: 'Text',
@@ -497,17 +650,20 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
       _overlayDrafts = [..._overlayDrafts, draft];
       _selectedOverlayId = draft.localId;
     });
+    _pushTextHistoryIfChanged(before);
   }
 
   void _handleDeleteOverlay() {
     final id = _selectedOverlayId;
     if (id == null) return;
+    final before = _captureTextSnapshot();
     setState(() {
       _overlayDrafts = _overlayDrafts.where((o) => o.localId != id).toList();
       _selectedOverlayId = _overlayDrafts.isEmpty
           ? null
           : _overlayDrafts.last.localId;
     });
+    _pushTextHistoryIfChanged(before);
   }
 
   _OverlayDraft? get _selectedOverlay {
@@ -538,12 +694,25 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
             left: left,
             top: top,
             child: GestureDetector(
-              onTap: () => setState(() => _selectedOverlayId = ov.localId),
+              onTap: () {
+                if (_selectedOverlayId == ov.localId) return;
+                final before = _captureTextSnapshot();
+                setState(() => _selectedOverlayId = ov.localId);
+                _pushTextHistoryIfChanged(before);
+              },
+              onPanStart: (_) {
+                _textGestureStart = _captureTextSnapshot();
+              },
               onPanUpdate: (d) {
                 setState(() {
                   ov.x = (ov.x + d.delta.dx / gridWidth).clamp(0.0, 1.0);
                   ov.y = (ov.y + d.delta.dy / gridHeight).clamp(0.0, 1.0);
                 });
+              },
+              onPanEnd: (_) {
+                final before = _textGestureStart;
+                _textGestureStart = null;
+                if (before != null) _pushTextHistoryIfChanged(before);
               },
               child: Stack(
                 clipBehavior: Clip.none,
@@ -572,11 +741,19 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
                       left: -7,
                       top: -7,
                       child: _ResizeHandle(
+                        onPanStart: () {
+                          _textGestureStart = _captureTextSnapshot();
+                        },
                         onPanUpdate: (delta) {
                           setState(() {
                             final next = ov.scale + (-(delta.dx + delta.dy) / 220);
                             ov.scale = next.clamp(0.5, 4.0);
                           });
+                        },
+                        onPanEnd: () {
+                          final before = _textGestureStart;
+                          _textGestureStart = null;
+                          if (before != null) _pushTextHistoryIfChanged(before);
                         },
                       ),
                     ),
@@ -584,11 +761,19 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
                       right: -7,
                       bottom: -7,
                       child: _ResizeHandle(
+                        onPanStart: () {
+                          _textGestureStart = _captureTextSnapshot();
+                        },
                         onPanUpdate: (delta) {
                           setState(() {
                             final next = ov.scale + ((delta.dx + delta.dy) / 220);
                             ov.scale = next.clamp(0.5, 4.0);
                           });
+                        },
+                        onPanEnd: () {
+                          final before = _textGestureStart;
+                          _textGestureStart = null;
+                          if (before != null) _pushTextHistoryIfChanged(before);
                         },
                       ),
                     ),
@@ -655,6 +840,7 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
       0xAA0000FF,
     ];
     final selected = _selectedOverlay;
+    _syncTextInputController();
     final screenH = MediaQuery.of(context).size.height;
     final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
     return SafeArea(
@@ -677,6 +863,44 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
             child: ListView(
               shrinkWrap: true,
               children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: (_savingEdits || !_canUndoText)
+                            ? null
+                            : _undoText,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: kWhite.withValues(alpha: 0.8),
+                          side: BorderSide(
+                            color: kWhite.withValues(alpha: 0.15),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                        ),
+                        icon: const Icon(Icons.undo, size: 16),
+                        label: const Text('Undo'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: (_savingEdits || !_canRedoText)
+                            ? null
+                            : _redoText,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: kWhite.withValues(alpha: 0.8),
+                          side: BorderSide(
+                            color: kWhite.withValues(alpha: 0.15),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                        ),
+                        icon: const Icon(Icons.redo, size: 16),
+                        label: const Text('Redo'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
                 Row(
                   children: [
                     ElevatedButton.icon(
@@ -709,10 +933,15 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
                   const SizedBox(height: 8),
                   TextFormField(
                     key: ValueKey(selected.localId),
-                    initialValue: selected.text,
+                    controller: _textInputController,
                     onChanged: (v) {
-                      selected.text = v;
+                      if (_isSyncingTextInput) return;
+                      final current = _selectedOverlay;
+                      if (current == null) return;
+                      _textTypingStart ??= _captureTextSnapshot();
+                      current.text = v;
                       setState(() {});
+                      _scheduleTextInputHistoryPush();
                     },
                     style: GoogleFonts.bricolageGrotesque(color: kWhite),
                     keyboardType: TextInputType.multiline,
@@ -733,8 +962,10 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
                             color: Color(c),
                             selected: selected.textColor == c,
                             onTap: () {
+                              final before = _captureTextSnapshot();
                               selected.textColor = c;
                               setState(() {});
+                              _pushTextHistoryIfChanged(before);
                             },
                           ),
                         )
@@ -750,8 +981,10 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
                             showBorder: true,
                             selected: selected.bgColor == c,
                             onTap: () {
+                              final before = _captureTextSnapshot();
                               selected.bgColor = c;
                               setState(() {});
+                              _pushTextHistoryIfChanged(before);
                             },
                           ),
                         )
@@ -1397,6 +1630,16 @@ class _OverlayDraft {
   int zIndex;
 }
 
+class _TextEditorSnapshot {
+  const _TextEditorSnapshot({
+    required this.drafts,
+    required this.selectedOverlayId,
+  });
+
+  final List<_OverlayDraft> drafts;
+  final int? selectedOverlayId;
+}
+
 class _SwatchDot extends StatelessWidget {
   const _SwatchDot({
     required this.color,
@@ -1435,14 +1678,22 @@ class _SwatchDot extends StatelessWidget {
 }
 
 class _ResizeHandle extends StatelessWidget {
-  const _ResizeHandle({required this.onPanUpdate});
+  const _ResizeHandle({
+    required this.onPanUpdate,
+    this.onPanStart,
+    this.onPanEnd,
+  });
 
   final ValueChanged<Offset> onPanUpdate;
+  final VoidCallback? onPanStart;
+  final VoidCallback? onPanEnd;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
+      onPanStart: (_) => onPanStart?.call(),
       onPanUpdate: (d) => onPanUpdate(d.delta),
+      onPanEnd: (_) => onPanEnd?.call(),
       child: Container(
         width: 14,
         height: 14,
