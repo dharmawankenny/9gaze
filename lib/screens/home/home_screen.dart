@@ -15,6 +15,7 @@ import 'package:kensa_9gaze/screens/home/widgets/home_search_bar.dart';
 import 'package:kensa_9gaze/screens/home/widgets/home_top_bar.dart';
 import 'package:kensa_9gaze/screens/home/widgets/new_gaze_button.dart';
 import 'package:kensa_9gaze/screens/home/widgets/new_gaze_sheet.dart';
+import 'package:kensa_9gaze/services/thumbnail_backfill.dart';
 
 /// Root screen for the home tab. Holds the gazes stream so the
 /// list and the bottom button share one subscription.
@@ -39,6 +40,9 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _gazesStream = _repo.watchAll();
+    // Background one-time migration for legacy slots created before
+    // thumbnail support existed. Non-blocking and safe to rerun.
+    Future<void>.microtask(() => ThumbnailBackfill.runOnce(appDatabase));
     WidgetsBinding.instance.addPostFrameCallback((_) => removeSplash());
   }
 
