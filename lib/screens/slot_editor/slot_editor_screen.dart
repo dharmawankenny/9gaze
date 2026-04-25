@@ -29,6 +29,7 @@ import 'package:kensa_9gaze/repositories/gaze_slots_repository.dart';
 import 'package:kensa_9gaze/services/face_aligner.dart';
 import 'package:kensa_9gaze/services/image_storage.dart';
 import 'package:kensa_9gaze/services/thumbnail_renderer.dart';
+import 'package:kensa_9gaze/utils/undo_redo_stack.dart';
 import 'package:kensa_9gaze/widgets/gaze_slot_image.dart';
 
 /// Full-screen modal for adjusting pan/zoom/rotation of a slot photo.
@@ -88,6 +89,16 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
   bool _saving = false;
   late GazeSlot _currentSlot;
 
+  /// Undo/redo history for transform edits in this editor session.
+  final UndoRedoStack<_TransformSnapshot> _history = UndoRedoStack();
+
+  _TransformSnapshot _gestureStartSnapshot = const _TransformSnapshot(
+    translateX: 0.5,
+    translateY: 0.5,
+    scale: 1.0,
+    rotation: 0.0,
+  );
+
   @override
   void initState() {
     super.initState();
@@ -107,12 +118,14 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
 
   /// Resets transform to last saved DB values.
   void _handleReset() {
-    setState(() {
-      _translateX = _savedTranslateX;
-      _translateY = _savedTranslateY;
-      _scale = _savedScale;
-      _rotation = _savedRotation;
-    });
+    _applyActionWithHistory(
+      _TransformSnapshot(
+        translateX: _savedTranslateX,
+        translateY: _savedTranslateY,
+        scale: _savedScale,
+        rotation: _savedRotation,
+      ),
+    );
   }
 
   /// Re-centers transform to MLKit auto-detected framing.
@@ -121,12 +134,14 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
   /// re-running detector.
   void _handleRecenter() {
     final autoFit = _computeAutoFitFromCurrentSlot();
-    setState(() {
-      _translateX = autoFit.translateX;
-      _translateY = autoFit.translateY;
-      _scale = autoFit.scale;
-      _rotation = autoFit.rotation;
-    });
+    _applyActionWithHistory(
+      _TransformSnapshot(
+        translateX: autoFit.translateX,
+        translateY: autoFit.translateY,
+        scale: autoFit.scale,
+        rotation: autoFit.rotation,
+      ),
+    );
   }
 
   /// Computes MLKit-like auto-fit from current slot metadata.
@@ -195,6 +210,62 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
         (_translateY - _savedTranslateY).abs() > eps ||
         (_scale - _savedScale).abs() > eps ||
         (_rotation - _savedRotation).abs() > eps;
+  }
+
+
+  bool get _canUndo => _history.canUndo;
+  bool get _canRedo => _history.canRedo;
+
+  _TransformSnapshot _snapshot() {
+    return _TransformSnapshot(
+      translateX: _translateX,
+      translateY: _translateY,
+      scale: _scale,
+      rotation: _rotation,
+    );
+  }
+
+  bool _sameSnapshot(_TransformSnapshot a, _TransformSnapshot b) {
+    const eps = 0.000001;
+    return (a.translateX - b.translateX).abs() <= eps &&
+        (a.translateY - b.translateY).abs() <= eps &&
+        (a.scale - b.scale).abs() <= eps &&
+        (a.rotation - b.rotation).abs() <= eps;
+  }
+
+  void _applySnapshot(_TransformSnapshot value) {
+    setState(() {
+      _translateX = value.translateX;
+      _translateY = value.translateY;
+      _scale = value.scale;
+      _rotation = value.rotation;
+    });
+  }
+
+  void _pushIfChanged(_TransformSnapshot before, _TransformSnapshot after) {
+    if (_sameSnapshot(before, after)) return;
+    _history.push(before);
+  }
+
+  void _undo() {
+    if (_saving) return;
+    final prior = _history.undo(_snapshot());
+    if (prior == null) return;
+    _applySnapshot(prior);
+  }
+
+  void _redo() {
+    if (_saving) return;
+    final next = _history.redo(_snapshot());
+    if (next == null) return;
+    _applySnapshot(next);
+  }
+
+  void _applyActionWithHistory(_TransformSnapshot next) {
+    if (_saving) return;
+    final before = _snapshot();
+    _pushIfChanged(before, next);
+    _applySnapshot(next);
   }
 
   /// Allows the user to pick a new photo from gallery, re-running
@@ -292,6 +363,7 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
         _savedTranslateY = autoFit.translateY;
         _savedScale = autoFit.scale;
         _savedRotation = autoFit.rotation;
+        _history.clear();
       });
     }
   }
@@ -304,6 +376,7 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
     _gestureStartTx = _translateX;
     _gestureStartTy = _translateY;
     _gestureFocalStart = d.focalPoint;
+    _gestureStartSnapshot = _snapshot();
   }
 
   void _onScaleUpdate(ScaleUpdateDetails d) {
@@ -343,6 +416,11 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
       _translateX = newTx.clamp(0.0, 1.0);
       _translateY = newTy.clamp(0.0, 1.0);
     });
+  }
+
+  void _onScaleEnd(ScaleEndDetails d) {
+    _pushIfChanged(_gestureStartSnapshot, _snapshot());
+    if (mounted) setState(() {});
   }
 
   // ── Build ────────────────────────────────────────────────────
@@ -402,6 +480,40 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
                 ),
               ),
               const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: (_saving || !_canUndo) ? null : _undo,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: kWhite.withValues(alpha: 0.8),
+                        side: BorderSide(
+                          color: kWhite.withValues(alpha: 0.15),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      icon: const Icon(Icons.undo, size: 16),
+                      label: const Text('Undo'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: (_saving || !_canRedo) ? null : _redo,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: kWhite.withValues(alpha: 0.8),
+                        side: BorderSide(
+                          color: kWhite.withValues(alpha: 0.15),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      icon: const Icon(Icons.redo, size: 16),
+                      label: const Text('Redo'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
               Row(
                 children: [
                   Expanded(
@@ -472,6 +584,7 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
                         GestureDetector(
                           onScaleStart: _onScaleStart,
                           onScaleUpdate: _onScaleUpdate,
+                          onScaleEnd: _onScaleEnd,
                           child: GazeSlotImage(
                             slot: _currentSlot,
                             renderSize: frameSize,
@@ -502,6 +615,22 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
       ),
     );
   }
+}
+
+
+
+class _TransformSnapshot {
+  const _TransformSnapshot({
+    required this.translateX,
+    required this.translateY,
+    required this.scale,
+    required this.rotation,
+  });
+
+  final double translateX;
+  final double translateY;
+  final double scale;
+  final double rotation;
 }
 
 // ── Guide overlay painter ────────────────────────────────────────
