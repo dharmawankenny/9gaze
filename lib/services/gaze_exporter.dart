@@ -28,6 +28,7 @@ import 'package:uuid/uuid.dart';
 import 'package:kensa_9gaze/db/app_database.dart';
 import 'package:kensa_9gaze/models/slot_key.dart';
 import 'package:kensa_9gaze/services/image_storage.dart';
+import 'package:kensa_9gaze/services/text_overlay_layout.dart';
 import 'package:kensa_9gaze/services/thumbnail_renderer.dart';
 
 /// Renders a gaze collage and saves it to the device gallery.
@@ -56,12 +57,16 @@ class GazeExporter {
     required Gaze gaze,
     required List<GazeSlot> slots,
     List<GazeTextOverlay> overlays = const [],
+    Locale? locale,
+    double? referenceFrameWidth,
   }) async {
     try {
       final bytes = await _renderCollage(
         gaze: gaze,
         slots: slots,
         overlays: overlays,
+        locale: locale,
+        referenceFrameWidth: referenceFrameWidth,
       );
       final shortId = _uuid.v4().replaceAll('-', '').substring(0, 8);
       final safeName = gaze.name
@@ -90,6 +95,8 @@ class GazeExporter {
     required Gaze gaze,
     required List<GazeSlot> slots,
     required List<GazeTextOverlay> overlays,
+    Locale? locale,
+    double? referenceFrameWidth,
   }) async {
     final isCompact = gaze.isCompact;
     final isDualPrimary = gaze.isDoublePrimary;
@@ -168,6 +175,8 @@ class GazeExporter {
         overlay: overlay,
         canvasW: canvasW.toDouble(),
         canvasH: canvasH.toDouble(),
+        locale: locale,
+        referenceFrameWidth: referenceFrameWidth,
       );
     }
 
@@ -282,40 +291,28 @@ class GazeExporter {
     required GazeTextOverlay overlay,
     required double canvasW,
     required double canvasH,
+    Locale? locale,
+    double? referenceFrameWidth,
   }) {
-    final x = (overlay.x * canvasW).clamp(0.0, canvasW);
-    final y = (overlay.y * canvasH).clamp(0.0, canvasH);
-    // Match on-screen sizing model: font scales with grid width.
-    final fontSize = ((canvasW * 0.04) * overlay.scale).clamp(8.0, 220.0);
+    final layout = TextOverlayLayout.compute(
+      text: overlay.content,
+      textColor: overlay.textColor,
+      scale: overlay.scale,
+      normalizedX: overlay.x,
+      normalizedY: overlay.y,
+      frameWidth: canvasW,
+      frameHeight: canvasH,
+      referenceFrameWidth: referenceFrameWidth,
+      locale: locale,
+    );
 
-    final builder = ui.ParagraphBuilder(
-      ui.ParagraphStyle(
-        textAlign: TextAlign.left,
-        fontSize: fontSize,
-      ),
-    )..pushStyle(
-        ui.TextStyle(
-          color: ui.Color(overlay.textColor),
-          fontWeight: FontWeight.w600,
-        ),
-      );
-    builder.addText(overlay.content);
-    final paragraph = builder.build()
-      ..layout(ui.ParagraphConstraints(width: canvasW * 0.9));
-
-    final bg = overlay.bgColor == null
-        ? null
-        : (Paint()..color = ui.Color(overlay.bgColor!));
-    if (bg != null) {
-      final rect = Rect.fromLTWH(
-        x,
-        y,
-        paragraph.longestLine + 12,
-        paragraph.height + 6,
-      );
-      canvas.drawRect(rect, bg);
-    }
-    canvas.drawParagraph(paragraph, Offset(x + 6, y + 3));
+    canvas.save();
+    canvas.translate(layout.left, layout.top);
+    TextOverlayBoxPainter(
+      layout: layout,
+      bgColor: overlay.bgColor,
+    ).paint(canvas, Size(layout.boxWidth, layout.boxHeight));
+    canvas.restore();
   }
 
   /// Computes source crop rect for BoxFit.cover style drawImageRect.

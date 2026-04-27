@@ -19,6 +19,7 @@ import 'package:kensa_9gaze/screens/gaze_detail/update_gaze_sheet.dart';
 import 'package:kensa_9gaze/screens/gaze_detail/widgets/gaze_direction_grid.dart';
 import 'package:kensa_9gaze/services/gaze_exporter.dart';
 import 'package:kensa_9gaze/services/image_storage.dart';
+import 'package:kensa_9gaze/services/text_overlay_layout.dart';
 import 'package:kensa_9gaze/services/thumbnail_renderer.dart';
 import 'package:kensa_9gaze/utils/undo_redo_stack.dart';
 
@@ -37,6 +38,10 @@ class GazeDetailScreen extends StatefulWidget {
 }
 
 class _GazeDetailScreenState extends State<GazeDetailScreen> {
+  double? _lastOverlayGridWidth;
+  double? _lastOverlayGridHeight;
+  static const double _overlayHandleRadius = 14.0;
+
   late final GazesRepository _repo;
   late final GazeSlotsRepository _slotsRepo;
   late final GazeTextOverlaysRepository _overlayRepo;
@@ -178,10 +183,16 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
     try {
       final slots = await _slotsRepo.getAllForGaze(_current.id);
       final overlays = await _overlayRepo.getForGaze(_current.id);
+      final gazeForExport = _current.copyWith(
+        isCompact: _compactMode,
+        isDoublePrimary: _dualPrimary,
+      );
       final result = await GazeExporter.export(
-        gaze: _current,
+        gaze: gazeForExport,
         slots: slots,
         overlays: overlays,
+        locale: Localizations.localeOf(context),
+        referenceFrameWidth: _lastOverlayGridWidth,
       );
 
       if (!mounted) return;
@@ -689,7 +700,66 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
     return null;
   }
 
+  TextStyle _overlayTextStyle({
+    required Color color,
+    required double fontSize,
+  }) {
+    return TextStyle(
+      color: color,
+      fontSize: fontSize,
+      fontWeight: FontWeight.w600,
+      fontFamily: 'Roboto',
+    );
+  }
+
+  Size _measureOverlaySize({
+    required _OverlayDraft overlay,
+    required double gridWidth,
+  }) {
+    return _measureOverlaySizeFromText(
+      text: overlay.text,
+      textColor: overlay.textColor,
+      scale: overlay.scale,
+      gridWidth: gridWidth,
+    );
+  }
+
+  Size _measureOverlaySizeFromText({
+    required String text,
+    required int textColor,
+    required double scale,
+    required double gridWidth,
+  }) {
+    final layout = TextOverlayLayout.compute(
+      text: text,
+      textColor: textColor,
+      scale: scale,
+      normalizedX: 0,
+      normalizedY: 0,
+      frameWidth: gridWidth,
+      frameHeight: gridWidth,
+      locale: Localizations.localeOf(context),
+    );
+    return Size(layout.boxWidth, layout.boxHeight);
+  }
+
+  double _clampOverlayLeft(double left, double width, double gridWidth) {
+    const minVisiblePx = 4.0;
+    final minLeft = -(width - minVisiblePx);
+    final maxLeft = gridWidth - minVisiblePx;
+    return left.clamp(minLeft, maxLeft);
+  }
+
+  double _clampOverlayTop(double top, double height, double gridHeight) {
+    const minVisiblePx = 4.0;
+    final minTop = -(height - minVisiblePx);
+    final maxTop = gridHeight - minVisiblePx;
+    return top.clamp(minTop, maxTop);
+  }
+
   Widget _buildOverlayLayer(double gridWidth, double gridHeight) {
+    _lastOverlayGridWidth = gridWidth;
+    _lastOverlayGridHeight = gridHeight;
     // Overlay should only capture gestures in text edit mode.
     // In all other modes, pass pointers through so slot taps/drags
     // work even when user touches on top of text overlays.
@@ -699,14 +769,24 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
       return Stack(
         children: overlays!.map((ov) {
           final isSelected = ov.localId == _selectedOverlayId;
-          final left = (ov.x * gridWidth).clamp(0.0, gridWidth - 24);
-          final top = (ov.y * gridHeight).clamp(0.0, gridHeight - 24);
+          final layout = TextOverlayLayout.compute(
+            text: ov.text,
+            textColor: ov.textColor,
+            scale: ov.scale,
+            normalizedX: ov.x,
+            normalizedY: ov.y,
+            frameWidth: gridWidth,
+            frameHeight: gridHeight,
+            locale: Localizations.localeOf(context),
+          );
+          final overlaySize = Size(layout.boxWidth, layout.boxHeight);
+          final left = layout.left;
+          final top = layout.top;
           // Keep text scale proportional to grid width so export can
           // mirror it 1:1 by using the same width ratio.
-          final fontSize = (gridWidth * 0.04) * ov.scale;
           return Positioned(
-            left: left,
-            top: top,
+            left: left - _overlayHandleRadius,
+            top: top - _overlayHandleRadius,
             child: GestureDetector(
               onTap: () {
                 if (_selectedOverlayId == ov.localId) return;
@@ -719,8 +799,20 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
               },
               onPanUpdate: (d) {
                 setState(() {
-                  ov.x = (ov.x + d.delta.dx / gridWidth).clamp(0.0, 1.0);
-                  ov.y = (ov.y + d.delta.dy / gridHeight).clamp(0.0, 1.0);
+                  final currentLeft = ov.x * gridWidth;
+                  final currentTop = ov.y * gridHeight;
+                  final nextLeft = _clampOverlayLeft(
+                    currentLeft + d.delta.dx,
+                    overlaySize.width,
+                    gridWidth,
+                  );
+                  final nextTop = _clampOverlayTop(
+                    currentTop + d.delta.dy,
+                    overlaySize.height,
+                    gridHeight,
+                  );
+                  ov.x = nextLeft / gridWidth;
+                  ov.y = nextTop / gridHeight;
                 });
               },
               onPanEnd: (_) {
@@ -731,72 +823,120 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: ov.bgColor != null
-                          ? Color(ov.bgColor!)
-                          : Colors.transparent,
-                      border: isSelected
-                          ? Border.all(color: kAccentBlue, width: 1.5)
-                          : null,
-                    ),
-                    child: Text(
-                      ov.text,
-                      style: GoogleFonts.bricolageGrotesque(
-                        color: Color(ov.textColor),
-                        fontSize: fontSize,
-                        fontWeight: FontWeight.w600,
-                      ),
+                  SizedBox(
+                    width: overlaySize.width + (_overlayHandleRadius * 2),
+                    height: overlaySize.height + (_overlayHandleRadius * 2),
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        if (isSelected)
+                          Positioned(
+                            left: _overlayHandleRadius,
+                            top: _overlayHandleRadius,
+                            right: _overlayHandleRadius,
+                            bottom: _overlayHandleRadius,
+                            child: IgnorePointer(
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color: kAccentBlue,
+                                    width: 1.5,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        Positioned(
+                          left: _overlayHandleRadius,
+                          top: _overlayHandleRadius,
+                          child: SizedBox(
+                            width: layout.boxWidth,
+                            height: layout.boxHeight,
+                            child: CustomPaint(
+                              painter: TextOverlayBoxPainter(
+                                layout: layout,
+                                bgColor: ov.bgColor,
+                              ),
+                            ),
+                          ),
+                        ),
+                        if (isSelected) ...[
+                          Positioned(
+                            left: 0,
+                            top: 0,
+                            child: _ResizeHandle(
+                              onPanStart: () {
+                                _textGestureStart = _captureTextSnapshot();
+                              },
+                              onPanUpdate: (delta) {
+                                setState(() {
+                                  final oldSize = _measureOverlaySize(
+                                    overlay: ov,
+                                    gridWidth: gridWidth,
+                                  );
+                                  final oldLeft = ov.x * gridWidth;
+                                  final oldTop = ov.y * gridHeight;
+                                  final oldRight = oldLeft + oldSize.width;
+                                  final oldBottom = oldTop + oldSize.height;
+                                  final next =
+                                      ov.scale + (-(delta.dx + delta.dy) / 220);
+                                  ov.scale = next.clamp(0.5, 4.0);
+                                  final newSize = _measureOverlaySizeFromText(
+                                    text: ov.text,
+                                    textColor: ov.textColor,
+                                    scale: ov.scale,
+                                    gridWidth: gridWidth,
+                                  );
+                                  final nextLeft = _clampOverlayLeft(
+                                    oldRight - newSize.width,
+                                    newSize.width,
+                                    gridWidth,
+                                  );
+                                  final nextTop = _clampOverlayTop(
+                                    oldBottom - newSize.height,
+                                    newSize.height,
+                                    gridHeight,
+                                  );
+                                  ov.x = nextLeft / gridWidth;
+                                  ov.y = nextTop / gridHeight;
+                                });
+                              },
+                              onPanEnd: () {
+                                final before = _textGestureStart;
+                                _textGestureStart = null;
+                                if (before != null) {
+                                  _pushTextHistoryIfChanged(before);
+                                }
+                              },
+                            ),
+                          ),
+                          Positioned(
+                            right: 0,
+                            bottom: 0,
+                            child: _ResizeHandle(
+                              onPanStart: () {
+                                _textGestureStart = _captureTextSnapshot();
+                              },
+                              onPanUpdate: (delta) {
+                                setState(() {
+                                  final next =
+                                      ov.scale + ((delta.dx + delta.dy) / 220);
+                                  ov.scale = next.clamp(0.5, 4.0);
+                                });
+                              },
+                              onPanEnd: () {
+                                final before = _textGestureStart;
+                                _textGestureStart = null;
+                                if (before != null) {
+                                  _pushTextHistoryIfChanged(before);
+                                }
+                              },
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
-                  if (isSelected) ...[
-                    Positioned(
-                      left: -7,
-                      top: -7,
-                      child: _ResizeHandle(
-                        onPanStart: () {
-                          _textGestureStart = _captureTextSnapshot();
-                        },
-                        onPanUpdate: (delta) {
-                          setState(() {
-                            final next =
-                                ov.scale + (-(delta.dx + delta.dy) / 220);
-                            ov.scale = next.clamp(0.5, 4.0);
-                          });
-                        },
-                        onPanEnd: () {
-                          final before = _textGestureStart;
-                          _textGestureStart = null;
-                          if (before != null) _pushTextHistoryIfChanged(before);
-                        },
-                      ),
-                    ),
-                    Positioned(
-                      right: -7,
-                      bottom: -7,
-                      child: _ResizeHandle(
-                        onPanStart: () {
-                          _textGestureStart = _captureTextSnapshot();
-                        },
-                        onPanUpdate: (delta) {
-                          setState(() {
-                            final next =
-                                ov.scale + ((delta.dx + delta.dy) / 220);
-                            ov.scale = next.clamp(0.5, 4.0);
-                          });
-                        },
-                        onPanEnd: () {
-                          final before = _textGestureStart;
-                          _textGestureStart = null;
-                          if (before != null) _pushTextHistoryIfChanged(before);
-                        },
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ),
@@ -812,27 +952,26 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
           final rows = snap.data ?? const <GazeTextOverlay>[];
           return Stack(
             children: rows.map((ov) {
-              final left = (ov.x * gridWidth).clamp(0.0, gridWidth - 24);
-              final top = (ov.y * gridHeight).clamp(0.0, gridHeight - 24);
+              final layout = TextOverlayLayout.compute(
+                text: ov.content,
+                textColor: ov.textColor,
+                scale: ov.scale,
+                normalizedX: ov.x,
+                normalizedY: ov.y,
+                frameWidth: gridWidth,
+                frameHeight: gridHeight,
+                locale: Localizations.localeOf(context),
+              );
               return Positioned(
-                left: left,
-                top: top,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: ov.bgColor != null
-                        ? Color(ov.bgColor!)
-                        : Colors.transparent,
-                  ),
-                  child: Text(
-                    ov.content,
-                    style: GoogleFonts.bricolageGrotesque(
-                      color: Color(ov.textColor),
-                      fontSize: (gridWidth * 0.04) * ov.scale,
-                      fontWeight: FontWeight.w600,
+                left: layout.left,
+                top: layout.top,
+                child: SizedBox(
+                  width: layout.boxWidth,
+                  height: layout.boxHeight,
+                  child: CustomPaint(
+                    painter: TextOverlayBoxPainter(
+                      layout: layout,
+                      bgColor: ov.bgColor,
                     ),
                   ),
                 ),
@@ -1718,16 +1857,23 @@ class _ResizeHandle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onPanStart: (_) => onPanStart?.call(),
       onPanUpdate: (d) => onPanUpdate(d.delta),
       onPanEnd: (_) => onPanEnd?.call(),
-      child: Container(
-        width: 14,
-        height: 14,
-        decoration: BoxDecoration(
-          color: kAccentBlue,
-          shape: BoxShape.circle,
-          border: Border.all(color: kWhite, width: 1.2),
+      child: SizedBox(
+        width: 28,
+        height: 28,
+        child: Center(
+          child: Container(
+            width: 14,
+            height: 14,
+            decoration: BoxDecoration(
+              color: kAccentBlue,
+              shape: BoxShape.circle,
+              border: Border.all(color: kWhite, width: 1.2),
+            ),
+          ),
         ),
       ),
     );
