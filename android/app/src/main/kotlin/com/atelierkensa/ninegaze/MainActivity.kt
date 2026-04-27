@@ -1,4 +1,4 @@
-package com.example.kensa_9gaze
+package com.atelierkensa.ninegaze
 
 import io.flutter.embedding.android.FlutterActivity
 
