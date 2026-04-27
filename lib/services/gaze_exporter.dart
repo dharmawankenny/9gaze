@@ -69,7 +69,7 @@ class GazeExporter {
           .replaceAll(RegExp(r'\s+'), '_')
           .replaceAll(RegExp(r'[^A-Za-z0-9_]'), '')
           .toLowerCase();
-      final normalizedName = safeName.isEmpty ? 'patient' : safeName;
+      final normalizedName = safeName.isEmpty ? 'gaze_detail' : safeName;
       final timeTag = DateTime.now().microsecondsSinceEpoch
           .toRadixString(36)
           .substring(4);

@@ -18,6 +18,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:kensa_9gaze/l10n/app_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -25,6 +26,7 @@ import 'package:kensa_9gaze/app/theme.dart';
 import 'package:kensa_9gaze/db/app_database.dart';
 import 'package:kensa_9gaze/db/database_provider.dart';
 import 'package:kensa_9gaze/models/slot_key.dart';
+import 'package:kensa_9gaze/models/slot_key_localized_label.dart';
 import 'package:kensa_9gaze/repositories/gaze_slots_repository.dart';
 import 'package:kensa_9gaze/services/face_aligner.dart';
 import 'package:kensa_9gaze/services/image_storage.dart';
@@ -428,6 +430,7 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
   @override
   Widget build(BuildContext context) {
     final aspectRatio = widget.isCompact ? 2.0 : 1.0;
+    final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
       backgroundColor: kBlack,
@@ -435,11 +438,11 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
         backgroundColor: kDarkBlue,
         leading: IconButton(
           icon: const Icon(Icons.close, color: kWhite),
-          tooltip: 'Discard',
+          tooltip: l10n.discard,
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
-          kSlotKeyLabel[widget.slotKey] ?? '',
+          slotKeyLocalizedLabel(l10n, widget.slotKey),
           style: GoogleFonts.bricolageGrotesque(
             color: kWhite,
             fontSize: 18,
@@ -452,7 +455,7 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
             child: TextButton(
               onPressed: (_saving || !_hasUnsavedTransform) ? null : _handleSave,
               child: Text(
-                _saving ? 'Saving…' : 'Save',
+                _saving ? l10n.saving : l10n.save,
                 style: GoogleFonts.bricolageGrotesque(
                   color: (_saving || !_hasUnsavedTransform)
                       ? kWhite.withValues(alpha: 0.35)
@@ -472,7 +475,7 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'Pinch to zoom · Drag to pan · Twist to rotate',
+                l10n.pinchZoomDragTwist,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.bricolageGrotesque(
                   color: kWhite.withValues(alpha: 0.35),
@@ -493,7 +496,7 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                       icon: const Icon(Icons.undo, size: 16),
-                      label: const Text('Undo'),
+                      label: Text(l10n.undo),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -508,7 +511,7 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                       icon: const Icon(Icons.redo, size: 16),
-                      label: const Text('Redo'),
+                      label: Text(l10n.redo),
                     ),
                   ),
                 ],
@@ -526,7 +529,7 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
                         ),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
-                      child: const Text('Reset'),
+                      child: Text(l10n.reset),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -540,7 +543,7 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
                         ),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
-                      child: const Text('Recenter'),
+                      child: Text(l10n.recenter),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -554,7 +557,7 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
                         ),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
-                      child: const Text('Replace'),
+                      child: Text(l10n.replace),
                     ),
                   ),
                 ],

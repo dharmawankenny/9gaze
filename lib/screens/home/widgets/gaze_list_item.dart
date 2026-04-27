@@ -11,6 +11,7 @@
 //                 halves inside the standard 96×96 container.
 
 import 'package:flutter/material.dart';
+import 'package:kensa_9gaze/l10n/app_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
@@ -53,21 +54,21 @@ class GazeListItem extends StatelessWidget {
   /// Shows a confirmation dialog and returns true only when
   /// the user taps "Delete".
   Future<bool> _confirmDelete(BuildContext context) async {
+    final l10n = AppLocalizations.of(context)!;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF0A0A0A),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
-          'Delete gaze?',
+          l10n.deleteGazeTitle,
           style: GoogleFonts.bricolageGrotesque(
             color: kWhite,
             fontWeight: FontWeight.w700,
           ),
         ),
         content: Text(
-          'This will permanently remove "${gaze.name}" and cannot '
-          'be undone.',
+          l10n.deleteGazeMessage(gaze.name),
           style: GoogleFonts.bricolageGrotesque(
             color: kWhite.withValues(alpha: 0.7),
           ),
@@ -76,7 +77,7 @@ class GazeListItem extends StatelessWidget {
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
             child: Text(
-              'Cancel',
+              l10n.cancel,
               style: GoogleFonts.bricolageGrotesque(
                 color: kWhite.withValues(alpha: 0.5),
               ),
@@ -85,7 +86,7 @@ class GazeListItem extends StatelessWidget {
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
             child: Text(
-              'Delete',
+              l10n.delete,
               style: GoogleFonts.bricolageGrotesque(
                 color: Colors.redAccent,
                 fontWeight: FontWeight.w700,
@@ -107,6 +108,7 @@ class GazeListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final formattedDate = _kDateFmt.format(gaze.updatedAt);
 
     return Dismissible(
@@ -165,7 +167,7 @@ class GazeListItem extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Last edited: $formattedDate',
+                        l10n.lastEdited(formattedDate),
                         style: GoogleFonts.bricolageGrotesque(
                           color: kWhite.withValues(alpha: 0.4),
                           fontSize: 12,

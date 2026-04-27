@@ -3,6 +3,7 @@
 // Renders an animated face placeholder when empty.
 
 import 'package:flutter/material.dart';
+import 'package:kensa_9gaze/l10n/app_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:kensa_9gaze/app/theme.dart';
@@ -47,10 +48,12 @@ class GazeListView extends StatelessWidget {
       );
     }
 
+    final l10n = AppLocalizations.of(context)!;
+
     if (hasError) {
       return Center(
         child: Text(
-          'Failed to load gazes.',
+          l10n.failedLoadGazes,
           style: GoogleFonts.bricolageGrotesque(
             color: kWhite.withValues(alpha: 0.5),
           ),
@@ -59,7 +62,7 @@ class GazeListView extends StatelessWidget {
     }
 
     if (gazes.isEmpty) {
-      return _EmptyState(isFiltered: isFiltered);
+      return _EmptyState(isFiltered: isFiltered, l10n: l10n);
     }
 
     return ListView.builder(
@@ -84,18 +87,17 @@ class GazeListView extends StatelessWidget {
 /// the 1:1 aspect ratio locked via [SizedBox.square].
 /// A context-sensitive message sits 16 px below the face.
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.isFiltered});
+  const _EmptyState({required this.isFiltered, required this.l10n});
 
   /// Whether the empty state is caused by an active search
   /// filter rather than the table truly having no rows.
   final bool isFiltered;
+  final AppLocalizations l10n;
 
   @override
   Widget build(BuildContext context) {
     final faceSize = MediaQuery.sizeOf(context).width / 2;
-    final message = isFiltered
-        ? 'No gaze found, try searching for another name'
-        : 'No gaze yet, make one by clicking the blue button below';
+    final message = isFiltered ? l10n.noGazeFound : l10n.noGazeYet;
 
     return Center(
       child: Column(

@@ -18,6 +18,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:kensa_9gaze/l10n/app_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -25,6 +26,7 @@ import 'package:kensa_9gaze/app/theme.dart';
 import 'package:kensa_9gaze/db/app_database.dart';
 import 'package:kensa_9gaze/db/database_provider.dart';
 import 'package:kensa_9gaze/models/slot_key.dart';
+import 'package:kensa_9gaze/models/slot_key_localized_label.dart';
 import 'package:kensa_9gaze/repositories/gaze_slots_repository.dart';
 import 'package:kensa_9gaze/screens/slot_editor/slot_editor_screen.dart';
 import 'package:kensa_9gaze/services/face_aligner.dart';
@@ -1097,7 +1099,7 @@ class _EditModeCell extends StatelessWidget {
                     direction: direction,
                     size: size,
                     height: height,
-                    label: kSlotKeyLabel[slotKey] ?? '',
+                    label: slotKeyLocalizedLabel(AppLocalizations.of(context)!, slotKey),
                   ),
           ),
 
@@ -1177,13 +1179,13 @@ class _GazeCell extends StatelessWidget {
                   slot: slot!,
                   size: size,
                   height: height,
-                  label: kSlotKeyLabel[slotKey] ?? '',
+                  label: slotKeyLocalizedLabel(AppLocalizations.of(context)!, slotKey),
                 )
               : _EmptyCell(
                   direction: direction,
                   size: size,
                   height: height,
-                  label: kSlotKeyLabel[slotKey] ?? '',
+                  label: slotKeyLocalizedLabel(AppLocalizations.of(context)!, slotKey),
                 ),
         ),
       ),
@@ -1255,13 +1257,13 @@ class _DualPrimaryCell extends StatelessWidget {
                         slot: primarySlot!,
                         size: size,
                         height: halfH,
-                        label: 'Primary',
+                        label: AppLocalizations.of(context)!.slotCenter,
                       )
                     : _EmptyCell(
                         direction: GazeDirection.primary,
                         size: size,
                         height: halfH,
-                        label: 'Primary',
+                        label: AppLocalizations.of(context)!.slotCenter,
                       ),
               ),
             ),
@@ -1290,13 +1292,13 @@ class _DualPrimaryCell extends StatelessWidget {
                         slot: secondarySlot!,
                         size: size,
                         height: halfH - 1,
-                        label: 'Primary 2',
+                        label: AppLocalizations.of(context)!.slotCenter2,
                       )
                     : _EmptyCell(
                         direction: GazeDirection.primary,
                         size: size,
                         height: halfH - 1,
-                        label: 'Primary 2',
+                        label: AppLocalizations.of(context)!.slotCenter2,
                       ),
               ),
             ),
@@ -1473,7 +1475,7 @@ class _EmptyCell extends StatelessWidget {
               ),
             ),
             Text(
-              'Tap to add',
+              AppLocalizations.of(context)!.tapToAdd,
               textAlign: TextAlign.center,
               style: GoogleFonts.bricolageGrotesque(
                 fontSize: 7,

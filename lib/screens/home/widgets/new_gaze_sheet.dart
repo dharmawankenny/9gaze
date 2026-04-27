@@ -1,9 +1,10 @@
 // Bottom sheet form for creating a new Gaze entry. Shows a
-// single patient-name field and a submit button. On submit it
-// writes to the DB, switches the button to a 'Created' state,
+// single gaze_detail-name field and a submit button. On submit it
+// writes to the DB, switches the button to a l10n.created state,
 // waits 500 ms, then closes the sheet.
 
 import 'package:flutter/material.dart';
+import 'package:kensa_9gaze/l10n/app_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:kensa_9gaze/app/theme.dart';
@@ -15,7 +16,7 @@ import 'package:kensa_9gaze/widgets/animated_gaze_face.dart';
 /// Modal bottom sheet content for the "New Gaze" flow.
 ///
 /// Owns the text field, submission logic, and the transient
-/// 'Created' confirmation state before auto-closing.
+/// l10n.created confirmation state before auto-closing.
 class NewGazeSheet extends StatefulWidget {
   const NewGazeSheet({super.key});
 
@@ -76,6 +77,7 @@ class _NewGazeSheetState extends State<NewGazeSheet> {
   @override
   Widget build(BuildContext context) {
     final hintColor = kWhite.withValues(alpha: 0.5);
+    final l10n = AppLocalizations.of(context)!;
     // Pad above keyboard so the field stays visible.
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
@@ -102,7 +104,7 @@ class _NewGazeSheetState extends State<NewGazeSheet> {
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: Text(
-              'Gaze Details',
+              l10n.gazeDetails,
               style: GoogleFonts.bricolageGrotesque(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -111,7 +113,7 @@ class _NewGazeSheetState extends State<NewGazeSheet> {
             ),
           ),
 
-          // ── Patient name field ───────────────────────────────
+          // ── Gaze detail name field ───────────────────────────────
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
             decoration: BoxDecoration(
@@ -131,7 +133,7 @@ class _NewGazeSheetState extends State<NewGazeSheet> {
               ),
               decoration: InputDecoration(
                 border: InputBorder.none,
-                hintText: 'Patient name',
+                hintText: l10n.gazeDetailName,
                 hintStyle: GoogleFonts.bricolageGrotesque(
                   color: hintColor,
                   fontSize: 16,
@@ -161,7 +163,7 @@ class _NewGazeSheetState extends State<NewGazeSheet> {
               ),
               decoration: InputDecoration(
                 border: InputBorder.none,
-                hintText: 'Notes (optional)',
+                hintText: l10n.notesOptional,
                 hintStyle: GoogleFonts.bricolageGrotesque(
                   color: hintColor,
                   fontSize: 14,
@@ -194,8 +196,8 @@ class _NewGazeSheetState extends State<NewGazeSheet> {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
               ),
               child: _submitted
-                  ? _buildSubmittedContent()
-                  : _buildIdleContent(),
+                  ? _buildSubmittedContent(l10n)
+                  : _buildIdleContent(l10n),
             ),
           ),
         ],
@@ -204,7 +206,7 @@ class _NewGazeSheetState extends State<NewGazeSheet> {
   }
 
   /// Button content after successful insert.
-  Widget _buildSubmittedContent() {
+  Widget _buildSubmittedContent(AppLocalizations l10n) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.start,
       children: [
@@ -217,7 +219,7 @@ class _NewGazeSheetState extends State<NewGazeSheet> {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Text(
-              'Created',
+              l10n.created,
               style: GoogleFonts.bricolageGrotesque(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -233,7 +235,7 @@ class _NewGazeSheetState extends State<NewGazeSheet> {
   }
 
   /// Default idle button content.
-  Widget _buildIdleContent() {
+  Widget _buildIdleContent(AppLocalizations l10n) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.start,
       children: [
@@ -241,7 +243,7 @@ class _NewGazeSheetState extends State<NewGazeSheet> {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Text(
-              'Create Gaze',
+              l10n.createGaze,
               style: GoogleFonts.bricolageGrotesque(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,

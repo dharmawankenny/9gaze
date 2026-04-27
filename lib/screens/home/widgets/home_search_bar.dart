@@ -2,6 +2,7 @@
 // text input. Notifies parent of query changes via [onChanged].
 
 import 'package:flutter/material.dart';
+import 'package:kensa_9gaze/l10n/app_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:kensa_9gaze/app/theme.dart';
@@ -27,6 +28,7 @@ class HomeSearchBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hintColor = kWhite.withValues(alpha: 0.5);
+    final l10n = AppLocalizations.of(context)!;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -50,7 +52,7 @@ class HomeSearchBar extends StatelessWidget {
                 ),
                 decoration: InputDecoration(
                   border: InputBorder.none,
-                  hintText: 'Search by name...',
+                  hintText: l10n.searchByNameHint,
                   hintStyle: GoogleFonts.bricolageGrotesque(
                     color: hintColor,
                     fontSize: 16,

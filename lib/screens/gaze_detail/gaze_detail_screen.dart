@@ -1,9 +1,10 @@
-// Gaze detail screen. Displays patient info as read-only text.
+// Gaze detail screen. Displays gaze_detail info as read-only text.
 import 'dart:async';
-// An 'Update' button in the header opens a bottom sheet that
+// An l10n.update button in the header opens a bottom sheet that
 // allows editing and writes changes back to the DB.
 
 import 'package:flutter/material.dart';
+import 'package:kensa_9gaze/l10n/app_localizations.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:google_fonts/google_fonts.dart';
@@ -23,7 +24,7 @@ import 'package:kensa_9gaze/utils/undo_redo_stack.dart';
 
 /// Detail view for a single [Gaze] entry.
 ///
-/// Displays patient info read-only. The Update button opens
+/// Displays gaze_detail info read-only. The Update button opens
 /// [UpdateGazeSheet] which pops back with the refreshed [Gaze]
 /// so this screen updates in place without a route push.
 class GazeDetailScreen extends StatefulWidget {
@@ -102,7 +103,6 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
   Timer? _textInputDebounce;
   _TextEditorSnapshot? _textTypingStart;
 
-
   @override
   void initState() {
     super.initState();
@@ -168,6 +168,7 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
   /// Fetches all slot rows for the current gaze, delegates rendering
   /// to [GazeExporter], and shows a SnackBar with the result.
   Future<void> _handleSaveToGallery() async {
+    final l10n = AppLocalizations.of(context)!;
     if (_exporting) return;
     setState(() {
       _exporting = true;
@@ -195,7 +196,7 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
           SnackBar(
             backgroundColor: Colors.redAccent,
             content: Text(
-              'Export failed: ${result.error}',
+              l10n.exportFailed(result.error ?? ''),
               style: GoogleFonts.bricolageGrotesque(color: kWhite),
             ),
           ),
@@ -211,6 +212,19 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
   bool get _isRearrangeMode => _editStage == _EditStage.rearrange;
   bool get _isTextMode => _editStage == _EditStage.text;
   bool get _isEditMenuMode => _editStage == _EditStage.menu;
+
+  String _getGazeDetailScreenTitle() {
+    if (_isEditMenuMode) {
+      return AppLocalizations.of(context)!.editGaze;
+    } else if (_isRepositionMode) {
+      return AppLocalizations.of(context)!.editReposition;
+    } else if (_isRearrangeMode) {
+      return AppLocalizations.of(context)!.editRearrange;
+    } else if (_isTextMode) {
+      return AppLocalizations.of(context)!.editTexts;
+    }
+    return AppLocalizations.of(context)!.gazeDetails;
+  }
 
   /// Enters edit menu (step 1) or exits all edit modes.
   Future<void> _handleToggleEditMode() async {
@@ -367,7 +381,6 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
         (slot.rotation - patch.rotation).abs() > eps;
   }
 
-
   bool get _canUndoText => _textHistory.canUndo;
   bool get _canRedoText => _textHistory.canRedo;
 
@@ -418,7 +431,8 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
     final selected = _selectedOverlay;
     final nextId = selected?.localId;
     final nextText = selected?.text ?? '';
-    if (_textInputOverlayId == nextId && _textInputController.text == nextText) {
+    if (_textInputOverlayId == nextId &&
+        _textInputController.text == nextText) {
       return;
     }
     _isSyncingTextInput = true;
@@ -638,7 +652,7 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
     final before = _captureTextSnapshot();
     final draft = _OverlayDraft(
       localId: _overlayLocalIdSeed--,
-      text: 'Text',
+      text: AppLocalizations.of(context)!.textDefault,
       x: 0.5,
       y: 0.5,
       scale: 1.0,
@@ -718,7 +732,10 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
                 clipBehavior: Clip.none,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: ov.bgColor != null
                           ? Color(ov.bgColor!)
@@ -746,7 +763,8 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
                         },
                         onPanUpdate: (delta) {
                           setState(() {
-                            final next = ov.scale + (-(delta.dx + delta.dy) / 220);
+                            final next =
+                                ov.scale + (-(delta.dx + delta.dy) / 220);
                             ov.scale = next.clamp(0.5, 4.0);
                           });
                         },
@@ -766,7 +784,8 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
                         },
                         onPanUpdate: (delta) {
                           setState(() {
-                            final next = ov.scale + ((delta.dx + delta.dy) / 220);
+                            final next =
+                                ov.scale + ((delta.dx + delta.dy) / 220);
                             ov.scale = next.clamp(0.5, 4.0);
                           });
                         },
@@ -799,7 +818,10 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
                 left: left,
                 top: top,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: ov.bgColor != null
                         ? Color(ov.bgColor!)
@@ -823,6 +845,7 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
   }
 
   Widget _buildEditBottomPanel() {
+    final l10n = AppLocalizations.of(context)!;
     const textSwatches = <int>[
       0xFFFFFFFF,
       0xFF000000,
@@ -878,7 +901,7 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
                           padding: const EdgeInsets.symmetric(vertical: 10),
                         ),
                         icon: const Icon(Icons.undo, size: 16),
-                        label: const Text('Undo'),
+                        label: Text(l10n.undo),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -895,7 +918,7 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
                           padding: const EdgeInsets.symmetric(vertical: 10),
                         ),
                         icon: const Icon(Icons.redo, size: 16),
-                        label: const Text('Redo'),
+                        label: Text(l10n.redo),
                       ),
                     ),
                   ],
@@ -911,7 +934,7 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
                         side: BorderSide(color: kWhite.withValues(alpha: 0.2)),
                       ),
                       icon: const Icon(Icons.add, size: 16),
-                      label: const Text('Add Text'),
+                      label: Text(l10n.addText),
                     ),
                     const SizedBox(width: 8),
                     if (selected != null)
@@ -925,7 +948,7 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
                           ),
                         ),
                         icon: const Icon(Icons.delete_outline, size: 16),
-                        label: const Text('Delete'),
+                        label: Text(l10n.delete),
                       ),
                   ],
                 ),
@@ -948,8 +971,8 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
                     textInputAction: TextInputAction.newline,
                     minLines: 3,
                     maxLines: null,
-                    decoration: const InputDecoration(
-                      hintText: 'Overlay text',
+                    decoration: InputDecoration(
+                      hintText: l10n.overlayTextHint,
                       isDense: true,
                     ),
                   ),
@@ -992,7 +1015,7 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Drag to move. Pinch selected text to scale.',
+                    l10n.dragMovePinchScale,
                     style: GoogleFonts.bricolageGrotesque(
                       color: kWhite.withValues(alpha: 0.6),
                       fontSize: 12,
@@ -1008,6 +1031,7 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
   }
 
   Widget _buildEditMenuBottomBar() {
+    final l10n = AppLocalizations.of(context)!;
     return SafeArea(
       top: false,
       child: Padding(
@@ -1019,12 +1043,10 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
                 onPressed: _savingEdits ? null : _handleEnterRepositionMode,
                 style: OutlinedButton.styleFrom(
                   foregroundColor: kWhite.withValues(alpha: 0.8),
-                  side: BorderSide(
-                    color: kWhite.withValues(alpha: 0.15),
-                  ),
+                  side: BorderSide(color: kWhite.withValues(alpha: 0.15)),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
-                child: const Text('Reposition'),
+                child: Text(l10n.reposition),
               ),
             ),
             const SizedBox(width: 8),
@@ -1033,12 +1055,10 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
                 onPressed: _savingEdits ? null : _handleEnterRearrangeMode,
                 style: OutlinedButton.styleFrom(
                   foregroundColor: kWhite.withValues(alpha: 0.8),
-                  side: BorderSide(
-                    color: kWhite.withValues(alpha: 0.15),
-                  ),
+                  side: BorderSide(color: kWhite.withValues(alpha: 0.15)),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
-                child: const Text('Rearrange'),
+                child: Text(l10n.rearrange),
               ),
             ),
             const SizedBox(width: 8),
@@ -1047,12 +1067,10 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
                 onPressed: _savingEdits ? null : _handleEnterTextMode,
                 style: OutlinedButton.styleFrom(
                   foregroundColor: kWhite.withValues(alpha: 0.8),
-                  side: BorderSide(
-                    color: kWhite.withValues(alpha: 0.15),
-                  ),
+                  side: BorderSide(color: kWhite.withValues(alpha: 0.15)),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
-                child: const Text('Texts'),
+                child: Text(l10n.texts),
               ),
             ),
           ],
@@ -1085,6 +1103,7 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
     required VoidCallback? onUndo,
     required VoidCallback? onRedo,
   }) {
+    final l10n = AppLocalizations.of(context)!;
     return SafeArea(
       top: false,
       child: Padding(
@@ -1095,7 +1114,9 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
             OutlinedButton.icon(
               onPressed: canUndo ? onUndo : null,
               style: OutlinedButton.styleFrom(
-                foregroundColor: canUndo ? kWhite : kWhite.withValues(alpha: 0.3),
+                foregroundColor: canUndo
+                    ? kWhite
+                    : kWhite.withValues(alpha: 0.3),
                 side: BorderSide(
                   color: canUndo
                       ? kWhite.withValues(alpha: 0.5)
@@ -1110,13 +1131,15 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
                 ),
               ),
               icon: const Icon(Icons.undo, size: 18),
-              label: const Text('Undo'),
+              label: Text(l10n.undo),
             ),
             const SizedBox(width: 16),
             OutlinedButton.icon(
               onPressed: canRedo ? onRedo : null,
               style: OutlinedButton.styleFrom(
-                foregroundColor: canRedo ? kWhite : kWhite.withValues(alpha: 0.3),
+                foregroundColor: canRedo
+                    ? kWhite
+                    : kWhite.withValues(alpha: 0.3),
                 side: BorderSide(
                   color: canRedo
                       ? kWhite.withValues(alpha: 0.5)
@@ -1131,7 +1154,7 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
                 ),
               ),
               icon: const Icon(Icons.redo, size: 18),
-              label: const Text('Redo'),
+              label: Text(l10n.redo),
             ),
           ],
         ),
@@ -1141,6 +1164,7 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       bottomNavigationBar: _isTextMode
           ? _buildEditBottomPanel()
@@ -1207,10 +1231,10 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
                         Expanded(
                           child: Text(
                             _exporting
-                                ? 'Exporting…'
+                                ? l10n.exporting
                                 : (_exportSuccessFlash
-                                      ? 'Exported successfully'
-                                      : 'Save to Gallery'),
+                                      ? l10n.exportedSuccessfully
+                                      : l10n.saveToGallery),
                             style: GoogleFonts.bricolageGrotesque(
                               fontSize: 18,
                               fontWeight: FontWeight.w700,
@@ -1236,132 +1260,134 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
                 height: 48,
                 child: Row(
                   children: [
-                  if (!_isAnyEditMode)
-                    IconButton(
-                      onPressed: () {
-                        if (_isEditMenuMode) {
-                          _handleToggleEditMode();
-                          return;
-                        }
-                        Navigator.of(context).pop();
-                      },
-                      icon: const Icon(
-                        Icons.arrow_back,
+                    if (!_isAnyEditMode)
+                      IconButton(
+                        onPressed: () {
+                          if (_isEditMenuMode) {
+                            _handleToggleEditMode();
+                            return;
+                          }
+                          Navigator.of(context).pop();
+                        },
+                        icon: const Icon(
+                          Icons.arrow_back,
+                          color: kWhite,
+                          size: 24,
+                        ),
+                        tooltip: l10n.back,
+                      ),
+                    const SizedBox(width: 8),
+                    Text(
+                      _getGazeDetailScreenTitle(),
+                      style: GoogleFonts.bricolageGrotesque(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w700,
                         color: kWhite,
-                        size: 24,
+                        letterSpacing: -1.2,
                       ),
-                      tooltip: 'Back',
                     ),
-                  const SizedBox(width: 8),
-                  Text(
-                    _isAnyEditMode ? 'Edit gaze' : 'Gaze Details',
-                    style: GoogleFonts.bricolageGrotesque(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w700,
-                      color: kWhite,
-                      letterSpacing: -1.2,
-                    ),
-                  ),
-                  const Spacer(),
-                  // Right-side actions by edit stage.
-                  _savingEdits
-                      ? const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16),
-                          child: SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: kWhite,
+                    const Spacer(),
+                    // Right-side actions by edit stage.
+                    _savingEdits
+                        ? const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 16),
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: kWhite,
+                              ),
                             ),
-                          ),
-                        )
-                      : _isEditMenuMode
-                      ? TextButton(
-                          onPressed: _handleToggleEditMode,
-                          style: TextButton.styleFrom(
-                            backgroundColor: kWhite.withValues(alpha: 0.08),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
+                          )
+                        : _isEditMenuMode
+                        ? TextButton(
+                            onPressed: _handleToggleEditMode,
+                            style: TextButton.styleFrom(
+                              backgroundColor: kWhite.withValues(alpha: 0.08),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
+                              ),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                              ),
                             ),
-                            minimumSize: Size.zero,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
+                            child: Text(
+                              l10n.done,
+                              style: GoogleFonts.bricolageGrotesque(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: kWhite,
+                              ),
                             ),
-                          ),
-                          child: Text(
-                            'Done',
-                            style: GoogleFonts.bricolageGrotesque(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: kWhite,
-                            ),
-                          ),
-                        )
-                      : TextButton(
-                          onPressed: _isAnyEditMode
-                              ? (_canSaveCurrentEditStage
-                                    ? (_isRepositionMode
-                                          ? _handleSaveRepositionMode
-                                          : _isRearrangeMode
-                                          ? _handleSaveRearrangeMode
-                                          : _handleSaveTextMode)
-                                    : null)
-                              : _handleToggleEditMode,
-                          style: TextButton.styleFrom(
-                            backgroundColor: _isAnyEditMode
+                          )
+                        : TextButton(
+                            onPressed: _isAnyEditMode
                                 ? (_canSaveCurrentEditStage
-                                      ? kAccentBlue
-                                      : kWhite.withValues(alpha: 0.08))
-                                : kWhite.withValues(alpha: 0.08),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
+                                      ? (_isRepositionMode
+                                            ? _handleSaveRepositionMode
+                                            : _isRearrangeMode
+                                            ? _handleSaveRearrangeMode
+                                            : _handleSaveTextMode)
+                                      : null)
+                                : _handleToggleEditMode,
+                            style: TextButton.styleFrom(
+                              backgroundColor: _isAnyEditMode
+                                  ? (_canSaveCurrentEditStage
+                                        ? kAccentBlue
+                                        : kWhite.withValues(alpha: 0.08))
+                                  : kWhite.withValues(alpha: 0.08),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
+                              ),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                              ),
                             ),
-                            minimumSize: Size.zero,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
+                            child: Text(
+                              _isAnyEditMode ? l10n.save : l10n.edit,
+                              style: GoogleFonts.bricolageGrotesque(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: kWhite,
+                              ),
                             ),
                           ),
-                          child: Text(
-                            _isAnyEditMode ? 'Save' : 'Edit',
-                            style: GoogleFonts.bricolageGrotesque(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: kWhite,
-                            ),
+                    if (_isRearrangeMode ||
+                        _isTextMode ||
+                        _isRepositionMode) ...[
+                      const SizedBox(width: 8),
+                      TextButton(
+                        onPressed: _isRepositionMode
+                            ? _handleCancelRepositionMode
+                            : _isRearrangeMode
+                            ? _handleCancelRearrangeMode
+                            : _handleCancelTextMode,
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: Text(
+                          l10n.cancel,
+                          style: GoogleFonts.bricolageGrotesque(
+                            fontSize: 14,
+                            color: kWhite.withValues(alpha: 0.5),
                           ),
                         ),
-                  if (_isRearrangeMode || _isTextMode || _isRepositionMode) ...[
-                    const SizedBox(width: 8),
-                    TextButton(
-                      onPressed: _isRepositionMode
-                          ? _handleCancelRepositionMode
-                          : _isRearrangeMode
-                          ? _handleCancelRearrangeMode
-                          : _handleCancelTextMode,
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
-                      child: Text(
-                        'Cancel',
-                        style: GoogleFonts.bricolageGrotesque(
-                          fontSize: 14,
-                          color: kWhite.withValues(alpha: 0.5),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                  ] else if (!_isEditMenuMode)
-                    const SizedBox(width: 8),
+                      const SizedBox(width: 4),
+                    ] else if (!_isEditMenuMode)
+                      const SizedBox(width: 8),
                   ],
                 ),
               ),
@@ -1432,7 +1458,7 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
                               children: [
                                 Expanded(
                                   child: _ToggleRow(
-                                    label: 'Compact Mode?',
+                                    label: l10n.compactMode,
                                     value: _compactMode,
                                     onChanged: (v) =>
                                         _handleFlagChanged(compact: v),
@@ -1448,7 +1474,7 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
                                 ),
                                 Expanded(
                                   child: _ToggleRow(
-                                    label: 'Dual Primary?',
+                                    label: l10n.dualPrimary,
                                     value: _dualPrimary,
                                     onChanged: (v) =>
                                         _handleFlagChanged(doublePrimary: v),
@@ -1461,7 +1487,7 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
 
                         const SizedBox(height: 12),
 
-                        // ── Patient Info card ─────────────────────
+                        // ── Gaze Detail card ─────────────────────
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           child: Container(
@@ -1482,7 +1508,7 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
                                     Opacity(
                                       opacity: 0.5,
                                       child: Text(
-                                        'Patient Info',
+                                        l10n.gazeDetail,
                                         style: GoogleFonts.bricolageGrotesque(
                                           fontSize: 12,
                                           color: kWhite,
@@ -1503,7 +1529,7 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
                                             MaterialTapTargetSize.shrinkWrap,
                                       ),
                                       child: Text(
-                                        'Update',
+                                        l10n.update,
                                         style: GoogleFonts.bricolageGrotesque(
                                           fontSize: 13,
                                           fontWeight: FontWeight.w600,
@@ -1571,6 +1597,7 @@ class _ToggleRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1585,7 +1612,7 @@ class _ToggleRow extends StatelessWidget {
         Row(
           children: [
             Text(
-              value ? 'Yes' : 'No',
+              value ? l10n.yes : l10n.no,
               style: GoogleFonts.bricolageGrotesque(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,

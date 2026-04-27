@@ -6,6 +6,7 @@
 // clean.
 
 import 'package:flutter/material.dart';
+import 'package:kensa_9gaze/l10n/app_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:kensa_9gaze/app/theme.dart';
@@ -27,6 +28,7 @@ class NewGazeButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.symmetric(
@@ -59,7 +61,7 @@ class NewGazeButton extends StatelessWidget {
                 ],
                 Expanded(
                   child: Text(
-                    'New Gaze',
+                    l10n.newGaze,
                     style: GoogleFonts.bricolageGrotesque(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,

@@ -4,6 +4,7 @@
 // updated [Gaze] row so the detail screen can refresh in place.
 
 import 'package:flutter/material.dart';
+import 'package:kensa_9gaze/l10n/app_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:kensa_9gaze/app/theme.dart';
@@ -81,6 +82,7 @@ class _UpdateGazeSheetState extends State<UpdateGazeSheet> {
   @override
   Widget build(BuildContext context) {
     final hintColor = kWhite.withValues(alpha: 0.5);
+    final l10n = AppLocalizations.of(context)!;
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
     return Padding(
@@ -106,7 +108,7 @@ class _UpdateGazeSheetState extends State<UpdateGazeSheet> {
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: Text(
-              'Patient Info',
+              l10n.gazeDetail,
               style: GoogleFonts.bricolageGrotesque(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -115,7 +117,7 @@ class _UpdateGazeSheetState extends State<UpdateGazeSheet> {
             ),
           ),
 
-          // ── Patient name field ───────────────────────────────
+          // ── Gaze detail name field ───────────────────────────────
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
             decoration: BoxDecoration(
@@ -133,7 +135,7 @@ class _UpdateGazeSheetState extends State<UpdateGazeSheet> {
               ),
               decoration: InputDecoration(
                 border: InputBorder.none,
-                hintText: 'Patient name',
+                hintText: l10n.gazeDetailName,
                 hintStyle: GoogleFonts.bricolageGrotesque(
                   color: hintColor,
                   fontSize: 16,
@@ -163,7 +165,7 @@ class _UpdateGazeSheetState extends State<UpdateGazeSheet> {
               ),
               decoration: InputDecoration(
                 border: InputBorder.none,
-                hintText: 'Notes (optional)',
+                hintText: l10n.notesOptional,
                 hintStyle: GoogleFonts.bricolageGrotesque(
                   color: hintColor,
                   fontSize: 14,
@@ -196,8 +198,8 @@ class _UpdateGazeSheetState extends State<UpdateGazeSheet> {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
               ),
               child: _submitted
-                  ? _buildSubmittedContent()
-                  : _buildIdleContent(),
+                  ? _buildSubmittedContent(l10n)
+                  : _buildIdleContent(l10n),
             ),
           ),
         ],
@@ -206,7 +208,7 @@ class _UpdateGazeSheetState extends State<UpdateGazeSheet> {
   }
 
   /// Button content after a successful update.
-  Widget _buildSubmittedContent() {
+  Widget _buildSubmittedContent(AppLocalizations l10n) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.start,
       children: [
@@ -219,7 +221,7 @@ class _UpdateGazeSheetState extends State<UpdateGazeSheet> {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Text(
-              'Updated',
+              l10n.updated,
               style: GoogleFonts.bricolageGrotesque(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -235,7 +237,7 @@ class _UpdateGazeSheetState extends State<UpdateGazeSheet> {
   }
 
   /// Default idle button content.
-  Widget _buildIdleContent() {
+  Widget _buildIdleContent(AppLocalizations l10n) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.start,
       children: [
@@ -243,7 +245,7 @@ class _UpdateGazeSheetState extends State<UpdateGazeSheet> {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Text(
-              'Update Gaze',
+              l10n.updateGaze,
               style: GoogleFonts.bricolageGrotesque(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,

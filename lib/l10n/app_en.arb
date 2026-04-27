@@ -1,0 +1,80 @@
+{
+  "@@locale": "en",
+  "appTitle": "9Gaze",
+  "searchByNameHint": "Search by name...",
+  "newGaze": "New Gaze",
+  "gazeDetails": "Gaze Details",
+  "gazeDetail": "Gaze Detail",
+  "gazeDetailName": "Gaze name",
+  "notesOptional": "Notes (optional)",
+  "created": "Created",
+  "createGaze": "Create Gaze",
+  "updated": "Updated",
+  "updateGaze": "Update Gaze",
+  "failedLoadGazes": "Failed to load gazes.",
+  "noGazeFound": "No gaze found, try searching for another name",
+  "noGazeYet": "No gaze yet, make one by clicking the blue button below",
+  "deleteGazeTitle": "Delete gaze?",
+  "deleteGazeMessage": "This will permanently remove \"{name}\" and cannot be undone.",
+  "@deleteGazeMessage": {
+    "placeholders": {
+      "name": {}
+    }
+  },
+  "cancel": "Cancel",
+  "delete": "Delete",
+  "lastEdited": "Last edited: {date}",
+  "@lastEdited": {
+    "placeholders": {
+      "date": {}
+    }
+  },
+  "back": "Back",
+  "editGaze": "Edit gaze",
+  "editReposition": "Edit Position",
+  "editRearrange": "Edit Arrangement",
+  "editTexts": "Edit Texts",
+  "done": "Done",
+  "save": "Save",
+  "edit": "Edit",
+  "exporting": "Exporting…",
+  "exportedSuccessfully": "Exported successfully",
+  "saveToGallery": "Save to Gallery",
+  "compactMode": "Compact Mode?",
+  "dualPrimary": "Dual Primary?",
+  "update": "Update",
+  "yes": "Yes",
+  "no": "No",
+  "reposition": "Reposition",
+  "rearrange": "Rearrange",
+  "texts": "Texts",
+  "undo": "Undo",
+  "redo": "Redo",
+  "addText": "Add Text",
+  "overlayTextHint": "Overlay text",
+  "dragMovePinchScale": "Drag to move. Pinch selected text to scale.",
+  "exportFailed": "Export failed: {error}",
+  "@exportFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "tapToAdd": "Tap to add",
+  "slotTopLeft": "Top-left",
+  "slotTopCenter": "Top-center",
+  "slotTopRight": "Top-right",
+  "slotCenterLeft": "Center-left",
+  "slotCenter": "Center",
+  "slotCenterRight": "Center-right",
+  "slotBottomLeft": "Bottom-left",
+  "slotBottomCenter": "Bottom-center",
+  "slotBottomRight": "Bottom-right",
+  "slotCenter2": "Center 2",
+  "discard": "Discard",
+  "saving": "Saving…",
+  "pinchZoomDragTwist": "Pinch to zoom · Drag to pan · Twist to rotate",
+  "reset": "Reset",
+  "recenter": "Recenter",
+  "replace": "Replace",
+  "textDefault": "Text"
+}

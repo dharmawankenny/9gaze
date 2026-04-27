@@ -67,14 +67,14 @@ const List<SlotKey> kGridSlotOrder = [
 /// Human-readable label for each slot, shown beneath the icon in
 /// the gaze direction grid.
 const Map<SlotKey, String> kSlotKeyLabel = {
-  SlotKey.dextroelevation: 'Dextroelevation',
-  SlotKey.elevation: 'Elevation',
-  SlotKey.levoelevation: 'Levoelevation',
-  SlotKey.dextroversion: 'Dextroversion',
-  SlotKey.primary: 'Primary',
-  SlotKey.levoversion: 'Levoversion',
-  SlotKey.dextrodepression: 'Dextrodepression',
-  SlotKey.depression: 'Depression',
-  SlotKey.levodepression: 'Levodepression',
-  SlotKey.primarySecondary: 'Primary 2',
+  SlotKey.dextroelevation: 'Top-left',
+  SlotKey.elevation: 'Top-center',
+  SlotKey.levoelevation: 'Top-right',
+  SlotKey.dextroversion: 'Center-left',
+  SlotKey.primary: 'Center',
+  SlotKey.levoversion: 'Center-right',
+  SlotKey.dextrodepression: 'Bottom-left',
+  SlotKey.depression: 'Bottom-center',
+  SlotKey.levodepression: 'Bottom-right',
+  SlotKey.primarySecondary: 'Center 2',
 };
