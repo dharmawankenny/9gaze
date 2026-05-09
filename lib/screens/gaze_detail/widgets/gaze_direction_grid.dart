@@ -944,6 +944,7 @@ class _RepositionCell extends StatefulWidget {
 
 class _RepositionCellState extends State<_RepositionCell> {
   late double _startScale;
+  late double _startRotation;
   late double _startTx;
   late double _startTy;
   late Offset _startFocal;
@@ -991,6 +992,7 @@ class _RepositionCellState extends State<_RepositionCell> {
     return GestureDetector(
       onScaleStart: (d) {
         _startScale = patch.scale;
+        _startRotation = patch.rotation;
         _startTx = patch.translateX;
         _startTy = patch.translateY;
         _startFocal = d.focalPoint;
@@ -1021,12 +1023,13 @@ class _RepositionCellState extends State<_RepositionCell> {
         final nextTx = (_startTx - dx / (totalScale * sw)).clamp(0.0, 1.0);
         final nextTy = (_startTy - dy / (totalScale * sh)).clamp(0.0, 1.0);
         final nextScale = (_startScale * d.scale).clamp(0.2, 10.0);
+        final nextRotation = _startRotation + d.rotation;
 
         final nextPatch = SlotTransformPatch(
           translateX: nextTx,
           translateY: nextTy,
           scale: nextScale,
-          rotation: patch.rotation,
+          rotation: nextRotation,
         );
         widget.onPatchChanged(nextPatch);
         setState(() => _activePatch = nextPatch);
