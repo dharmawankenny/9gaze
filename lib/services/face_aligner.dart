@@ -119,6 +119,10 @@ class FaceAligner {
   /// Runs ML Kit face detection on [imagePath] and returns
   /// normalised eye boundary positions if a face is found.
   ///
+  /// When several faces are detected, picks the **largest** candidate
+  /// (bounding-box area, then inter-eye span) so group photos anchor
+  /// on the dominant subject instead of an arbitrary first detection.
+  ///
   /// Uses eye contours (full point arrays) to find the true outer
   /// edges: leftmost point of left-eye contour → [EyeLandmarks.leftX],
   /// rightmost point of right-eye contour → [EyeLandmarks.rightX].
@@ -129,14 +133,43 @@ class FaceAligner {
     final faces = await _detector.processImage(inputImage);
     if (faces.isEmpty) return null;
 
-    final face = faces.first;
-
     final imageSize = await _readImageSize(imagePath);
     if (imageSize == null) return null;
     final w = imageSize.width;
     final h = imageSize.height;
 
-    // Prefer contour extreme points for accurate edge-to-edge span.
+    EyeLandmarks? bestEyes;
+    var bestBboxArea = -1.0;
+    var bestEyeSpanSq = -1.0;
+    const tieEps = 1e-6;
+
+    for (final face in faces) {
+      final eyes = _eyesFromFace(face, w, h);
+      if (eyes == null) continue;
+
+      final bboxArea = face.boundingBox.width * face.boundingBox.height;
+      final dx = (eyes.rightX - eyes.leftX) * w;
+      final dy = (eyes.rightY - eyes.leftY) * h;
+      final eyeSpanSq = dx * dx + dy * dy;
+
+      final isBetter =
+          bestEyes == null ||
+          bboxArea > bestBboxArea + tieEps ||
+          ((bboxArea - bestBboxArea).abs() <= tieEps &&
+              eyeSpanSq > bestEyeSpanSq + tieEps);
+      if (isBetter) {
+        bestEyes = eyes;
+        bestBboxArea = bboxArea;
+        bestEyeSpanSq = eyeSpanSq;
+      }
+    }
+
+    return bestEyes;
+  }
+
+  /// Extracts [EyeLandmarks] for a single [Face] when both eyes are
+  /// available (contour extremes preferred, else landmark centres).
+  static EyeLandmarks? _eyesFromFace(Face face, double w, double h) {
     final leftContour = face.contours[FaceContourType.leftEye];
     final rightContour = face.contours[FaceContourType.rightEye];
 
