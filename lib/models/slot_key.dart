@@ -78,3 +78,18 @@ const Map<SlotKey, String> kSlotKeyLabel = {
   SlotKey.levodepression: 'Bottom-right',
   SlotKey.primarySecondary: 'Center 2',
 };
+
+/// Snake_case suffix for exported single-slot filenames (e.g.
+/// `_top_right`, `_center_secondary`).
+const Map<SlotKey, String> kSlotKeyExportSlug = {
+  SlotKey.dextroelevation: 'top_left',
+  SlotKey.elevation: 'top_center',
+  SlotKey.levoelevation: 'top_right',
+  SlotKey.dextroversion: 'center_left',
+  SlotKey.primary: 'center',
+  SlotKey.levoversion: 'center_right',
+  SlotKey.dextrodepression: 'bottom_left',
+  SlotKey.depression: 'bottom_center',
+  SlotKey.levodepression: 'bottom_right',
+  SlotKey.primarySecondary: 'center_secondary',
+};

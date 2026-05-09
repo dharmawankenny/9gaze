@@ -101,7 +101,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get exportedSuccessfully => 'Exported successfully';
 
   @override
-  String get saveToGallery => 'Save to Gallery';
+  String get saveToGallery => 'Export to Gallery';
 
   @override
   String get compactMode => 'Compact Mode?';
@@ -199,6 +199,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get replace => 'Replace';
+
+  @override
+  String get exportVerb => 'Export';
+
+  @override
+  String get exportDone => 'Exported';
 
   @override
   String get textDefault => 'Text';

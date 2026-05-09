@@ -167,10 +167,11 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
     if (mounted) setState(() => _flagsLoading = false);
   }
 
-  /// Renders the 3×3 collage and saves it to the device gallery.
+  /// Renders the 3×3 collage and exports it to the device gallery.
   ///
   /// Fetches all slot rows for the current gaze, delegates rendering
-  /// to [GazeExporter], and shows a SnackBar with the result.
+  /// to [GazeExporter]. On failure shows a SnackBar; success uses
+  /// the bottom button flash state like [SlotEditorScreen] export.
   Future<void> _handleSaveToGallery() async {
     final l10n = AppLocalizations.of(context)!;
     if (_exporting) return;
@@ -1328,47 +1329,51 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
                       elevation: 0,
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        if (_exporting)
-                          const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: kWhite,
+                    child: _exportSuccessFlash && !_exporting
+                        ? Center(
+                            child: Text(
+                              l10n.exportedSuccessfully,
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.bricolageGrotesque(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                                color: kWhite,
+                              ),
                             ),
                           )
-                        else if (_exportSuccessFlash)
-                          const Icon(
-                            Icons.check_circle_outline,
-                            color: kWhite,
-                            size: 24,
-                          )
-                        else
-                          const Icon(
-                            Icons.download_for_offline_outlined,
-                            color: kWhite,
-                            size: 24,
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              if (_exporting)
+                                const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: kWhite,
+                                  ),
+                                )
+                              else
+                                const Icon(
+                                  Icons.download_for_offline_outlined,
+                                  color: kWhite,
+                                  size: 24,
+                                ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  _exporting
+                                      ? l10n.exporting
+                                      : l10n.saveToGallery,
+                                  style: GoogleFonts.bricolageGrotesque(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                    color: kWhite,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            _exporting
-                                ? l10n.exporting
-                                : (_exportSuccessFlash
-                                      ? l10n.exportedSuccessfully
-                                      : l10n.saveToGallery),
-                            style: GoogleFonts.bricolageGrotesque(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                              color: kWhite,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
                   ),
                 ),
               ),
@@ -1524,6 +1529,7 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
               // ── 3×3 gaze direction grid ───────────────────────
               GazeDirectionGrid(
                 gazeId: _current.id,
+                gazeExportName: _current.name,
                 isDoublePrimary: _dualPrimary,
                 isCompact: _compactMode,
                 isEditMode: _isRearrangeMode,

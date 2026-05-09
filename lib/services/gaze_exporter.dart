@@ -65,12 +65,7 @@ class GazeExporter {
   }) async {
     try {
       final shortId = _uuid.v4().replaceAll('-', '').substring(0, 8);
-      final safeName = gaze.name
-          .trim()
-          .replaceAll(RegExp(r'\s+'), '_')
-          .replaceAll(RegExp(r'[^A-Za-z0-9_]'), '')
-          .toLowerCase();
-      final normalizedName = safeName.isEmpty ? 'gaze_detail' : safeName;
+      final normalizedName = _normalizeGazeFileSegment(gaze.name);
       final timeTag = DateTime.now().microsecondsSinceEpoch
           .toRadixString(36)
           .substring(4);
@@ -93,11 +88,16 @@ class GazeExporter {
             '9gaze_${normalizedName}_${shortId}_${timeTag}_primary.jpg';
       }
 
-      await Gal.putImageBytes(mainBytes, name: filename, album: '9Gaze');
+      // Gal.putImageBytes appends `.jpg`; [name] must omit extension.
+      await Gal.putImageBytes(
+        mainBytes,
+        name: _galImageBaseName(filename),
+        album: '9Gaze',
+      );
       if (primaryStripBytes != null && primaryFilename != null) {
         await Gal.putImageBytes(
           primaryStripBytes,
-          name: primaryFilename,
+          name: _galImageBaseName(primaryFilename),
           album: '9Gaze',
         );
       }
@@ -110,6 +110,105 @@ class GazeExporter {
     } catch (e) {
       return ExportResult(success: false, error: e.toString());
     }
+  }
+
+  /// Exports one slot at collage resolution ([kExportGridPx] square or
+  /// 2:1 height in compact mode), using **live** transform values so
+  /// unsaved edits in [SlotEditorScreen] match the file.
+  static Future<ExportResult> exportSlotToGallery({
+    required GazeSlot slot,
+    required SlotKey slotKey,
+    required bool isCompact,
+    required double translateX,
+    required double translateY,
+    required double scale,
+    required double rotation,
+    String gazeNameForFile = '',
+  }) async {
+    try {
+      final shortId = _uuid.v4().replaceAll('-', '').substring(0, 8);
+      final normalizedName =
+          _normalizeGazeFileSegment(gazeNameForFile);
+      final slug = kSlotKeyExportSlug[slotKey]!;
+      final timeTag = DateTime.now().microsecondsSinceEpoch
+          .toRadixString(36)
+          .substring(4);
+      final filename =
+          '9gaze_${normalizedName}_${shortId}_${timeTag}_$slug.jpg';
+
+      final canvasW = kExportGridPx;
+      final canvasH = isCompact ? kCompactCellH * 3 : kExportGridPx;
+
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(
+        recorder,
+        Rect.fromLTWH(0, 0, canvasW.toDouble(), canvasH.toDouble()),
+      );
+      canvas.drawRect(
+        Rect.fromLTWH(0, 0, canvasW.toDouble(), canvasH.toDouble()),
+        Paint()..color = const ui.Color(0xFF000000),
+      );
+
+      await _drawSlotCell(
+        canvas: canvas,
+        slot: slot,
+        cellRect: Rect.fromLTWH(
+          0,
+          0,
+          canvasW.toDouble(),
+          canvasH.toDouble(),
+        ),
+        overrideTranslateX: translateX,
+        overrideTranslateY: translateY,
+        overrideScale: scale,
+        overrideRotation: rotation,
+      );
+
+      final picture = recorder.endRecording();
+      final uiImage = await picture.toImage(canvasW, canvasH);
+      final byteData = await uiImage.toByteData(
+        format: ui.ImageByteFormat.rawRgba,
+      );
+      if (byteData == null) {
+        throw StateError('Failed to obtain raw RGBA bytes from canvas.');
+      }
+      final rawBytes = byteData.buffer.asUint8List();
+      uiImage.dispose();
+
+      final encoded =
+          await compute(_encodeJpeg, (rawBytes, canvasW, canvasH));
+      await Gal.putImageBytes(
+        encoded,
+        name: _galImageBaseName(filename),
+        album: '9Gaze',
+      );
+
+      return ExportResult(success: true, filename: filename);
+    } catch (e) {
+      return ExportResult(success: false, error: e.toString());
+    }
+  }
+
+  /// Strip trailing `.jpg` / `.jpeg` for [Gal.putImageBytes], which adds
+  /// `.jpg` itself.
+  static String _galImageBaseName(String filename) {
+    var s = filename.trim();
+    final lower = s.toLowerCase();
+    if (lower.endsWith('.jpeg')) {
+      s = s.substring(0, s.length - 5);
+    } else if (lower.endsWith('.jpg')) {
+      s = s.substring(0, s.length - 4);
+    }
+    return s;
+  }
+
+  static String _normalizeGazeFileSegment(String raw) {
+    final safe = raw
+        .trim()
+        .replaceAll(RegExp(r'\s+'), '_')
+        .replaceAll(RegExp(r'[^A-Za-z0-9_]'), '')
+        .toLowerCase();
+    return safe.isEmpty ? 'gaze_detail' : safe;
   }
 
   // ── Render pipeline ─────────────────────────────────────────
@@ -289,11 +388,20 @@ class GazeExporter {
     required Canvas canvas,
     required GazeSlot? slot,
     required Rect cellRect,
+    double? overrideTranslateX,
+    double? overrideTranslateY,
+    double? overrideScale,
+    double? overrideRotation,
   }) async {
     if (slot == null) {
       // Empty slot: leave black (already painted as bg).
       return;
     }
+
+    final liveTransforms = overrideTranslateX != null &&
+        overrideTranslateY != null &&
+        overrideScale != null &&
+        overrideRotation != null;
 
     final thumbAbsPath = await ImageStorage.resolveThumbAbsPath(
       slot.imagePath,
@@ -302,7 +410,7 @@ class GazeExporter {
 
     // Fast path: thumbnail already encodes the transform, so we just
     // scale it to fill the cell — no matrix arithmetic needed.
-    if (File(thumbAbsPath).existsSync()) {
+    if (!liveTransforms && File(thumbAbsPath).existsSync()) {
       final bytes = await File(thumbAbsPath).readAsBytes();
       final codec =
           await ui.instantiateImageCodec(Uint8List.fromList(bytes));
@@ -350,14 +458,30 @@ class GazeExporter {
       baseScale = math.max(fw / sw, fh / sh);
     }
 
-    final totalScale = baseScale * slot.scale;
-    final imgCx = slot.translateX * sw;
-    final imgCy = slot.translateY * sh;
+    late final double tx;
+    late final double ty;
+    late final double userScale;
+    late final double rot;
+    if (liveTransforms) {
+      tx = overrideTranslateX;
+      ty = overrideTranslateY;
+      userScale = overrideScale;
+      rot = overrideRotation;
+    } else {
+      tx = slot.translateX;
+      ty = slot.translateY;
+      userScale = slot.scale;
+      rot = slot.rotation;
+    }
+
+    final totalScale = baseScale * userScale;
+    final imgCx = tx * sw;
+    final imgCy = ty * sh;
 
     canvas.save();
     canvas.clipRect(cellRect);
     canvas.translate(cellRect.left + fw / 2, cellRect.top + fh / 2);
-    canvas.rotate(slot.rotation);
+    canvas.rotate(rot);
     canvas.scale(totalScale, totalScale);
     canvas.translate(-imgCx, -imgCy);
     canvas.drawImage(srcImage, Offset.zero, Paint());

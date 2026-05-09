@@ -39,7 +39,7 @@
   "edit": "Edit",
   "exporting": "Exporting…",
   "exportedSuccessfully": "Exported successfully",
-  "saveToGallery": "Save to Gallery",
+  "saveToGallery": "Export to Gallery",
   "compactMode": "Compact Mode?",
   "dualPrimary": "Dual Primary?",
   "update": "Update",
@@ -76,5 +76,7 @@
   "reset": "Reset",
   "recenter": "Recenter",
   "replace": "Replace",
+  "exportVerb": "Export",
+  "exportDone": "Exported",
   "textDefault": "Text"
 }

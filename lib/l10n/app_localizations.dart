@@ -275,7 +275,7 @@ abstract class AppLocalizations {
   /// No description provided for @saveToGallery.
   ///
   /// In en, this message translates to:
-  /// **'Save to Gallery'**
+  /// **'Export to Gallery'**
   String get saveToGallery;
 
   /// No description provided for @compactMode.
@@ -463,6 +463,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Replace'**
   String get replace;
+
+  /// No description provided for @exportVerb.
+  ///
+  /// In en, this message translates to:
+  /// **'Export'**
+  String get exportVerb;
+
+  /// No description provided for @exportDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Exported'**
+  String get exportDone;
 
   /// No description provided for @textDefault.
   ///

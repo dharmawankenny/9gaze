@@ -101,7 +101,7 @@ class AppLocalizationsId extends AppLocalizations {
   String get exportedSuccessfully => 'Berhasil diekspor';
 
   @override
-  String get saveToGallery => 'Simpan ke Galeri';
+  String get saveToGallery => 'Ekspor ke Galeri';
 
   @override
   String get compactMode => 'Mode pendek?';
@@ -199,6 +199,12 @@ class AppLocalizationsId extends AppLocalizations {
 
   @override
   String get replace => 'Ganti';
+
+  @override
+  String get exportVerb => 'Ekspor';
+
+  @override
+  String get exportDone => 'Diekspor';
 
   @override
   String get textDefault => 'Teks';

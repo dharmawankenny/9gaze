@@ -29,7 +29,7 @@
   "edit": "Ubah",
   "exporting": "Mengekspor…",
   "exportedSuccessfully": "Berhasil diekspor",
-  "saveToGallery": "Simpan ke Galeri",
+  "saveToGallery": "Ekspor ke Galeri",
   "compactMode": "Mode pendek?",
   "dualPrimary": "Dua tatapan tengah?",
   "update": "Perbarui",
@@ -61,5 +61,7 @@
   "reset": "Reset",
   "recenter": "Tengahkan",
   "replace": "Ganti",
+  "exportVerb": "Ekspor",
+  "exportDone": "Diekspor",
   "textDefault": "Teks"
 }

@@ -46,6 +46,7 @@ class GazeDirectionGrid extends StatefulWidget {
   const GazeDirectionGrid({
     super.key,
     required this.gazeId,
+    this.gazeExportName,
     this.isDoublePrimary = false,
     this.isCompact = false,
     this.isEditMode = false,
@@ -69,6 +70,9 @@ class GazeDirectionGrid extends StatefulWidget {
 
   /// ID of the parent [Gaze] row.
   final int gazeId;
+
+  /// Parent gaze display name for slot editor export filenames.
+  final String? gazeExportName;
 
   /// When true, the centre cell splits into two half-cells.
   final bool isDoublePrimary;
@@ -588,6 +592,7 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
           gazeId: widget.gazeId,
           slotKey: key,
           isCompact: useCompactFrame,
+          gazeExportName: widget.gazeExportName,
         ),
       ),
     );

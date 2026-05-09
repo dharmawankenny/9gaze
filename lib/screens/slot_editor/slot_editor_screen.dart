@@ -18,6 +18,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+
 import 'package:kensa_9gaze/l10n/app_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
@@ -29,6 +30,7 @@ import 'package:kensa_9gaze/models/slot_key.dart';
 import 'package:kensa_9gaze/models/slot_key_localized_label.dart';
 import 'package:kensa_9gaze/repositories/gaze_slots_repository.dart';
 import 'package:kensa_9gaze/services/face_aligner.dart';
+import 'package:kensa_9gaze/services/gaze_exporter.dart';
 import 'package:kensa_9gaze/services/image_storage.dart';
 import 'package:kensa_9gaze/services/thumbnail_renderer.dart';
 import 'package:kensa_9gaze/utils/undo_redo_stack.dart';
@@ -39,6 +41,7 @@ import 'package:kensa_9gaze/widgets/gaze_slot_image.dart';
 /// [slot] is the current DB row. [gazeId] and [slotKey] are needed
 /// when the user replaces the photo from within the editor.
 /// [isCompact] determines the slot's aspect ratio (1:1 vs 2:1).
+/// [gazeExportName] feeds gallery export filenames (see [GazeExporter.exportSlotToGallery]).
 class SlotEditorScreen extends StatefulWidget {
   const SlotEditorScreen({
     super.key,
@@ -46,12 +49,16 @@ class SlotEditorScreen extends StatefulWidget {
     required this.gazeId,
     required this.slotKey,
     this.isCompact = false,
+    this.gazeExportName,
   });
 
   final GazeSlot slot;
   final int gazeId;
   final SlotKey slotKey;
   final bool isCompact;
+
+  /// Parent gaze name used in gallery export filenames; optional.
+  final String? gazeExportName;
 
   @override
   State<SlotEditorScreen> createState() => _SlotEditorScreenState();
@@ -89,6 +96,10 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
   Size _frameSize = Size.zero;
 
   bool _saving = false;
+  bool _exportingSlot = false;
+
+  /// Brief success state on Export (matches gaze-detail save feedback).
+  bool _slotExportSuccessFlash = false;
   late GazeSlot _currentSlot;
 
   /// Undo/redo history for transform edits in this editor session.
@@ -118,16 +129,20 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
 
   // ── Actions ──────────────────────────────────────────────────
 
-  /// Resets transform to last saved DB values.
+  /// Whether session has undo/redo history (edits since open / last reset).
+  bool get _hasSessionUndoHistory =>
+      _history.canUndo || _history.canRedo;
+
+  /// Restores transform to last saved DB values and clears undo/redo.
   void _handleReset() {
-    _applyActionWithHistory(
-      _TransformSnapshot(
-        translateX: _savedTranslateX,
-        translateY: _savedTranslateY,
-        scale: _savedScale,
-        rotation: _savedRotation,
-      ),
-    );
+    if (_saving || !_hasSessionUndoHistory) return;
+    setState(() {
+      _translateX = _savedTranslateX;
+      _translateY = _savedTranslateY;
+      _scale = _savedScale;
+      _rotation = _savedRotation;
+      _history.clear();
+    });
   }
 
   /// Re-centers transform to MLKit auto-detected framing.
@@ -370,6 +385,49 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
     }
   }
 
+  /// Writes current on-screen framing to the gallery (JPEG), using
+  /// live transforms so unsaved edits are included.
+  Future<void> _handleExportSlotToGallery() async {
+    if (_saving || _exportingSlot || _slotExportSuccessFlash) return;
+    final l10n = AppLocalizations.of(context)!;
+    setState(() {
+      _exportingSlot = true;
+      _slotExportSuccessFlash = false;
+    });
+    try {
+      final result = await GazeExporter.exportSlotToGallery(
+        slot: _currentSlot,
+        slotKey: widget.slotKey,
+        isCompact: widget.isCompact,
+        translateX: _translateX,
+        translateY: _translateY,
+        scale: _scale,
+        rotation: _rotation,
+        gazeNameForFile: widget.gazeExportName ?? '',
+      );
+      if (!mounted) return;
+      if (result.success) {
+        setState(() => _slotExportSuccessFlash = true);
+        Future<void>.delayed(const Duration(seconds: 2), () {
+          if (!mounted) return;
+          setState(() => _slotExportSuccessFlash = false);
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.redAccent,
+            content: Text(
+              l10n.exportFailed(result.error ?? ''),
+              style: GoogleFonts.bricolageGrotesque(color: kWhite),
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _exportingSlot = false);
+    }
+  }
+
   // ── Gesture handlers ─────────────────────────────────────────
 
   void _onScaleStart(ScaleStartDetails d) {
@@ -485,33 +543,41 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
               const SizedBox(height: 12),
               Row(
                 children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: (_saving || !_canUndo) ? null : _undo,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: kWhite.withValues(alpha: 0.8),
-                        side: BorderSide(
-                          color: kWhite.withValues(alpha: 0.15),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      icon: const Icon(Icons.undo, size: 16),
-                      label: Text(l10n.undo),
-                    ),
+                  IconButton(
+                    tooltip: l10n.undo,
+                    color: kWhite.withValues(alpha: 0.9),
+                    onPressed: (_saving || !_canUndo) ? null : _undo,
+                    icon: const Icon(Icons.undo_rounded),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: (_saving || !_canRedo) ? null : _redo,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: kWhite.withValues(alpha: 0.8),
-                        side: BorderSide(
-                          color: kWhite.withValues(alpha: 0.15),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                  IconButton(
+                    tooltip: l10n.redo,
+                    color: kWhite.withValues(alpha: 0.9),
+                    onPressed: (_saving || !_canRedo) ? null : _redo,
+                    icon: const Icon(Icons.redo_rounded),
+                  ),
+                  IconButton(
+                    tooltip: l10n.reset,
+                    color: kWhite.withValues(alpha: 0.9),
+                    onPressed:
+                        (_saving || !_hasSessionUndoHistory) ? null : _handleReset,
+                    icon: const Icon(Icons.restart_alt_rounded),
+                  ),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: _saving ? null : _handleRecenter,
+                    style: TextButton.styleFrom(
+                      foregroundColor: kWhite.withValues(alpha: 0.9),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
                       ),
-                      icon: const Icon(Icons.redo, size: 16),
-                      label: Text(l10n.redo),
+                    ),
+                    child: Text(
+                      l10n.recenter,
+                      style: GoogleFonts.bricolageGrotesque(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
                     ),
                   ),
                 ],
@@ -519,34 +585,6 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
               const SizedBox(height: 8),
               Row(
                 children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: _saving ? null : _handleReset,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: kWhite.withValues(alpha: 0.8),
-                        side: BorderSide(
-                          color: kWhite.withValues(alpha: 0.15),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      child: Text(l10n.reset),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: _saving ? null : _handleRecenter,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: kWhite.withValues(alpha: 0.8),
-                        side: BorderSide(
-                          color: kWhite.withValues(alpha: 0.15),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      child: Text(l10n.recenter),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
                   Expanded(
                     child: OutlinedButton(
                       onPressed: _saving ? null : _handleReplaceImage,
@@ -558,6 +596,47 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                       child: Text(l10n.replace),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: (_saving ||
+                              _exportingSlot ||
+                              _slotExportSuccessFlash)
+                          ? null
+                          : _handleExportSlotToGallery,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: kWhite.withValues(alpha: 0.8),
+                        side: BorderSide(
+                          color: kWhite.withValues(alpha: 0.15),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: _exportingSlot
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: kWhite,
+                              ),
+                            )
+                          : _slotExportSuccessFlash
+                              ? Text(
+                                  l10n.exportDone,
+                                  style: GoogleFonts.bricolageGrotesque(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14,
+                                  ),
+                                )
+                              : Text(
+                                  l10n.exportVerb,
+                                  style: GoogleFonts.bricolageGrotesque(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14,
+                                  ),
+                                ),
                     ),
                   ),
                 ],
