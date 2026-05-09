@@ -5,6 +5,9 @@
 // mode), encodes the result as a maximum-quality JPEG, and saves it
 // to the device gallery via the `gal` package.
 //
+// Dual-primary gazes also save a second JPEG: top+bottom primary
+// strip only (standard 1080²; compact 1080×540). Filename `_primary`.
+//
 // The same normalised transform stored in each [GazeSlot] row is
 // applied here, mirroring the matrix used by [GazeSlotImage] so the
 // exported collage looks identical to what the user sees on screen.
@@ -61,13 +64,6 @@ class GazeExporter {
     double? referenceFrameWidth,
   }) async {
     try {
-      final bytes = await _renderCollage(
-        gaze: gaze,
-        slots: slots,
-        overlays: overlays,
-        locale: locale,
-        referenceFrameWidth: referenceFrameWidth,
-      );
       final shortId = _uuid.v4().replaceAll('-', '').substring(0, 8);
       final safeName = gaze.name
           .trim()
@@ -80,9 +76,37 @@ class GazeExporter {
           .substring(4);
       final filename = '9gaze_${normalizedName}_${shortId}_$timeTag.jpg';
 
-      await Gal.putImageBytes(bytes, name: filename, album: '9Gaze');
+      final mainBytes = await _renderCollage(
+        gaze: gaze,
+        slots: slots,
+        overlays: overlays,
+        locale: locale,
+        referenceFrameWidth: referenceFrameWidth,
+      );
 
-      return ExportResult(success: true, filename: filename);
+      Uint8List? primaryStripBytes;
+      String? primaryFilename;
+      if (gaze.isDoublePrimary) {
+        primaryStripBytes =
+            await _renderPrimaryStripOnly(gaze: gaze, slots: slots);
+        primaryFilename =
+            '9gaze_${normalizedName}_${shortId}_${timeTag}_primary.jpg';
+      }
+
+      await Gal.putImageBytes(mainBytes, name: filename, album: '9Gaze');
+      if (primaryStripBytes != null && primaryFilename != null) {
+        await Gal.putImageBytes(
+          primaryStripBytes,
+          name: primaryFilename,
+          album: '9Gaze',
+        );
+      }
+
+      return ExportResult(
+        success: true,
+        filename: filename,
+        secondaryFilename: primaryFilename,
+      );
     } catch (e) {
       return ExportResult(success: false, error: e.toString());
     }
@@ -196,6 +220,61 @@ class GazeExporter {
     final rawBytes = byteData.buffer.asUint8List();
     final encoded = await compute(_encodeJpeg, (rawBytes, canvasW, canvasH));
     return encoded;
+  }
+
+  /// Vertical strip: [primary] on top, [primarySecondary] below.
+  ///
+  /// Matches how each **half** looks in the grid: every half is
+  /// **2:1** (width : height), same as one row of a standard cell.
+  /// Standard → overall **1:1** (1080²). Compact → overall **2:1**
+  /// (1080×540). No text overlays (coords are for the full 3×3).
+  static Future<Uint8List> _renderPrimaryStripOnly({
+    required Gaze gaze,
+    required List<GazeSlot> slots,
+  }) async {
+    final canvasW = kExportGridPx;
+    // Two stacked 2:1 halves: standard ⇒ square canvas; compact ⇒ 2:1 canvas.
+    final canvasH =
+        gaze.isCompact ? kExportGridPx ~/ 2 : kExportGridPx;
+    final halfH = canvasH ~/ 2;
+
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(
+      recorder,
+      Rect.fromLTWH(0, 0, canvasW.toDouble(), canvasH.toDouble()),
+    );
+
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, canvasW.toDouble(), canvasH.toDouble()),
+      Paint()..color = const ui.Color(0xFF000000),
+    );
+
+    final slotMap = {for (final s in slots) s.slotKey: s};
+    final w = canvasW.toDouble();
+    final hTop = halfH.toDouble();
+
+    await _drawSlotCell(
+      canvas: canvas,
+      slot: slotMap[SlotKey.primary.name],
+      cellRect: Rect.fromLTWH(0, 0, w, hTop),
+    );
+    await _drawSlotCell(
+      canvas: canvas,
+      slot: slotMap[SlotKey.primarySecondary.name],
+      cellRect: Rect.fromLTWH(0, hTop, w, hTop),
+    );
+
+    final picture = recorder.endRecording();
+    final uiImage = await picture.toImage(canvasW, canvasH);
+    final byteData = await uiImage.toByteData(
+      format: ui.ImageByteFormat.rawRgba,
+    );
+    if (byteData == null) {
+      throw StateError('Failed to obtain raw RGBA bytes from canvas.');
+    }
+    final rawBytes = byteData.buffer.asUint8List();
+    uiImage.dispose();
+    return compute(_encodeJpeg, (rawBytes, canvasW, canvasH));
   }
 
   /// Draws a single slot's image (or a black placeholder) into
@@ -363,9 +442,16 @@ Uint8List _encodeJpeg((Uint8List rawRgba, int width, int height) args) {
 
 /// Holds the outcome of a [GazeExporter.export] call.
 class ExportResult {
-  const ExportResult({required this.success, this.filename, this.error});
+  const ExportResult({
+    required this.success,
+    this.filename,
+    this.secondaryFilename,
+    this.error,
+  });
 
   final bool success;
   final String? filename;
+  /// Set when [Gaze.isDoublePrimary]: dual-primary strip export `*_primary.jpg`.
+  final String? secondaryFilename;
   final String? error;
 }
