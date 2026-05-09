@@ -572,8 +572,12 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final fw = constraints.maxWidth;
-                final fh = fw / aspectRatio;
+                final maxW = constraints.maxWidth;
+                final maxH = constraints.maxHeight;
+                // Largest frame with width/height = aspectRatio that fits in
+                // maxW×maxH (wide tablets / fold inner / landscape).
+                final fh = math.min(maxH, maxW / aspectRatio);
+                final fw = aspectRatio * fh;
                 _frameSize = Size(fw, fh);
                 final frameSize = Size(fw, fh);
 

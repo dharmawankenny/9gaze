@@ -39,7 +39,6 @@ class GazeDetailScreen extends StatefulWidget {
 
 class _GazeDetailScreenState extends State<GazeDetailScreen> {
   double? _lastOverlayGridWidth;
-  double? _lastOverlayGridHeight;
   static const double _overlayHandleRadius = 14.0;
 
   late final GazesRepository _repo;
@@ -700,18 +699,6 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
     return null;
   }
 
-  TextStyle _overlayTextStyle({
-    required Color color,
-    required double fontSize,
-  }) {
-    return TextStyle(
-      color: color,
-      fontSize: fontSize,
-      fontWeight: FontWeight.w600,
-      fontFamily: 'Roboto',
-    );
-  }
-
   Size _measureOverlaySize({
     required _OverlayDraft overlay,
     required double gridWidth,
@@ -759,7 +746,6 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
 
   Widget _buildOverlayLayer(double gridWidth, double gridHeight) {
     _lastOverlayGridWidth = gridWidth;
-    _lastOverlayGridHeight = gridHeight;
     // Overlay should only capture gestures in text edit mode.
     // In all other modes, pass pointers through so slot taps/drags
     // work even when user touches on top of text overlays.
@@ -1389,330 +1375,328 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
             ),
       body: SafeArea(
         bottom: false,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── Top bar ──────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-              child: SizedBox(
-                height: 48,
-                child: Row(
-                  children: [
-                    if (!_isAnyEditMode)
-                      IconButton(
-                        onPressed: () {
-                          if (_isEditMenuMode) {
-                            _handleToggleEditMode();
-                            return;
-                          }
-                          Navigator.of(context).pop();
-                        },
-                        icon: const Icon(
-                          Icons.arrow_back,
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── Top bar ──────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                child: SizedBox(
+                  height: 48,
+                  child: Row(
+                    children: [
+                      if (!_isAnyEditMode)
+                        IconButton(
+                          onPressed: () {
+                            if (_isEditMenuMode) {
+                              _handleToggleEditMode();
+                              return;
+                            }
+                            Navigator.of(context).pop();
+                          },
+                          icon: const Icon(
+                            Icons.arrow_back,
+                            color: kWhite,
+                            size: 24,
+                          ),
+                          tooltip: l10n.back,
+                        ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _getGazeDetailScreenTitle(),
+                        style: GoogleFonts.bricolageGrotesque(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w700,
                           color: kWhite,
-                          size: 24,
+                          letterSpacing: -1.2,
                         ),
-                        tooltip: l10n.back,
                       ),
-                    const SizedBox(width: 8),
-                    Text(
-                      _getGazeDetailScreenTitle(),
-                      style: GoogleFonts.bricolageGrotesque(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w700,
-                        color: kWhite,
-                        letterSpacing: -1.2,
-                      ),
-                    ),
-                    const Spacer(),
-                    // Right-side actions by edit stage.
-                    _savingEdits
-                        ? const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 16),
-                            child: SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: kWhite,
+                      const Spacer(),
+                      // Right-side actions by edit stage.
+                      _savingEdits
+                          ? const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 16),
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: kWhite,
+                                ),
                               ),
-                            ),
-                          )
-                        : _isEditMenuMode
-                        ? TextButton(
-                            onPressed: _handleToggleEditMode,
-                            style: TextButton.styleFrom(
-                              backgroundColor: kWhite.withValues(alpha: 0.08),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 8,
+                            )
+                          : _isEditMenuMode
+                          ? TextButton(
+                              onPressed: _handleToggleEditMode,
+                              style: TextButton.styleFrom(
+                                backgroundColor: kWhite.withValues(alpha: 0.08),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
                               ),
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(20),
+                              child: Text(
+                                l10n.done,
+                                style: GoogleFonts.bricolageGrotesque(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: kWhite,
+                                ),
                               ),
-                            ),
-                            child: Text(
-                              l10n.done,
-                              style: GoogleFonts.bricolageGrotesque(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: kWhite,
-                              ),
-                            ),
-                          )
-                        : TextButton(
-                            onPressed: _isAnyEditMode
-                                ? (_canSaveCurrentEditStage
-                                      ? (_isRepositionMode
-                                            ? _handleSaveRepositionMode
-                                            : _isRearrangeMode
-                                            ? _handleSaveRearrangeMode
-                                            : _handleSaveTextMode)
-                                      : null)
-                                : _handleToggleEditMode,
-                            style: TextButton.styleFrom(
-                              backgroundColor: _isAnyEditMode
+                            )
+                          : TextButton(
+                              onPressed: _isAnyEditMode
                                   ? (_canSaveCurrentEditStage
-                                        ? kAccentBlue
-                                        : kWhite.withValues(alpha: 0.08))
-                                  : kWhite.withValues(alpha: 0.08),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 8,
+                                        ? (_isRepositionMode
+                                              ? _handleSaveRepositionMode
+                                              : _isRearrangeMode
+                                              ? _handleSaveRearrangeMode
+                                              : _handleSaveTextMode)
+                                        : null)
+                                  : _handleToggleEditMode,
+                              style: TextButton.styleFrom(
+                                backgroundColor: _isAnyEditMode
+                                    ? (_canSaveCurrentEditStage
+                                          ? kAccentBlue
+                                          : kWhite.withValues(alpha: 0.08))
+                                    : kWhite.withValues(alpha: 0.08),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
                               ),
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(20),
+                              child: Text(
+                                _isAnyEditMode ? l10n.save : l10n.edit,
+                                style: GoogleFonts.bricolageGrotesque(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: kWhite,
+                                ),
                               ),
                             ),
-                            child: Text(
-                              _isAnyEditMode ? l10n.save : l10n.edit,
-                              style: GoogleFonts.bricolageGrotesque(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: kWhite,
-                              ),
+                      if (_isRearrangeMode ||
+                          _isTextMode ||
+                          _isRepositionMode) ...[
+                        const SizedBox(width: 8),
+                        TextButton(
+                          onPressed: _isRepositionMode
+                              ? _handleCancelRepositionMode
+                              : _isRearrangeMode
+                              ? _handleCancelRearrangeMode
+                              : _handleCancelTextMode,
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: Text(
+                            l10n.cancel,
+                            style: GoogleFonts.bricolageGrotesque(
+                              fontSize: 14,
+                              color: kWhite.withValues(alpha: 0.5),
                             ),
                           ),
-                    if (_isRearrangeMode ||
-                        _isTextMode ||
-                        _isRepositionMode) ...[
-                      const SizedBox(width: 8),
-                      TextButton(
-                        onPressed: _isRepositionMode
-                            ? _handleCancelRepositionMode
-                            : _isRearrangeMode
-                            ? _handleCancelRearrangeMode
-                            : _handleCancelTextMode,
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
-                        child: Text(
-                          l10n.cancel,
-                          style: GoogleFonts.bricolageGrotesque(
-                            fontSize: 14,
-                            color: kWhite.withValues(alpha: 0.5),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                    ] else if (!_isEditMenuMode)
-                      const SizedBox(width: 8),
-                  ],
+                        const SizedBox(width: 4),
+                      ] else if (!_isEditMenuMode)
+                        const SizedBox(width: 8),
+                    ],
+                  ),
                 ),
               ),
-            ),
 
-            const SizedBox(height: 4),
+              const SizedBox(height: 4),
 
-            // ── 3×3 gaze direction grid ───────────────────────
-            GazeDirectionGrid(
-              gazeId: _current.id,
-              isDoublePrimary: _dualPrimary,
-              isCompact: _compactMode,
-              isEditMode: _isRearrangeMode,
-              isRepositionMode: _isRepositionMode,
-              isCellTapEnabled: !_isAnyEditMode,
-              onDoublePrimaryEnabled: () =>
-                  _handleFlagChanged(doublePrimary: true),
-              onSaveEdits: _captureSlotEditChanges,
-              onPendingReorderChanged: _capturePendingReorderChanges,
-              onSaveReposition: _captureRepositionChanges,
-              onPendingRepositionChanged: _capturePendingRepositionChanges,
-              onCommitEditsBound: (fn) => _commitEdits = fn,
-              onCommitRepositionBound: (fn) => _commitReposition = fn,
-              onUndoRepositionBound: (fn) => _undoReposition = fn,
-              onRedoRepositionBound: (fn) => _redoReposition = fn,
-              onUndoRearrangeBound: (fn) => _undoRearrange = fn,
-              onRedoRearrangeBound: (fn) => _redoRearrange = fn,
-              onRearrangeUndoRedoChanged: (canUndo, canRedo) {
-                _setStateSafely(() {
-                  _canUndoRearrange = canUndo;
-                  _canRedoRearrange = canRedo;
-                });
-              },
-              onRepositionUndoRedoChanged: (canUndo, canRedo) {
-                _setStateSafely(() {
-                  _canUndoReposition = canUndo;
-                  _canRedoReposition = canRedo;
-                });
-              },
-              overlayBuilder: _buildOverlayLayer,
-            ),
+              // ── 3×3 gaze direction grid ───────────────────────
+              GazeDirectionGrid(
+                gazeId: _current.id,
+                isDoublePrimary: _dualPrimary,
+                isCompact: _compactMode,
+                isEditMode: _isRearrangeMode,
+                isRepositionMode: _isRepositionMode,
+                isCellTapEnabled: !_isAnyEditMode,
+                onDoublePrimaryEnabled: () =>
+                    _handleFlagChanged(doublePrimary: true),
+                onSaveEdits: _captureSlotEditChanges,
+                onPendingReorderChanged: _capturePendingReorderChanges,
+                onSaveReposition: _captureRepositionChanges,
+                onPendingRepositionChanged: _capturePendingRepositionChanges,
+                onCommitEditsBound: (fn) => _commitEdits = fn,
+                onCommitRepositionBound: (fn) => _commitReposition = fn,
+                onUndoRepositionBound: (fn) => _undoReposition = fn,
+                onRedoRepositionBound: (fn) => _redoReposition = fn,
+                onUndoRearrangeBound: (fn) => _undoRearrange = fn,
+                onRedoRearrangeBound: (fn) => _redoRearrange = fn,
+                onRearrangeUndoRedoChanged: (canUndo, canRedo) {
+                  _setStateSafely(() {
+                    _canUndoRearrange = canUndo;
+                    _canRedoRearrange = canRedo;
+                  });
+                },
+                onRepositionUndoRedoChanged: (canUndo, canRedo) {
+                  _setStateSafely(() {
+                    _canUndoReposition = canUndo;
+                    _canRedoReposition = canRedo;
+                  });
+                },
+                overlayBuilder: _buildOverlayLayer,
+              ),
 
-            // ── Sections below greyed out in edit mode ────────
-            Expanded(
-              child: AnimatedOpacity(
+              // ── Sections below greyed out in edit mode ────────
+              AnimatedOpacity(
                 opacity: _isAnyEditMode ? 0.25 : 1.0,
                 duration: const Duration(milliseconds: 200),
                 child: IgnorePointer(
                   ignoring: _isAnyEditMode,
-                  child: SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 12),
 
-                        // ── Settings island ───────────────────────
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                            ).add(const EdgeInsets.only(top: 16)),
-                            decoration: BoxDecoration(
-                              color: kDarkBlue,
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: _ToggleRow(
-                                    label: l10n.compactMode,
-                                    value: _compactMode,
-                                    onChanged: (v) =>
-                                        _handleFlagChanged(compact: v),
-                                  ),
+                      // ── Settings island ───────────────────────
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                          ).add(const EdgeInsets.only(top: 16)),
+                          decoration: BoxDecoration(
+                            color: kDarkBlue,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: _ToggleRow(
+                                  label: l10n.compactMode,
+                                  value: _compactMode,
+                                  onChanged: (v) =>
+                                      _handleFlagChanged(compact: v),
                                 ),
-                                Container(
-                                  width: 1,
-                                  height: 40,
-                                  margin: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                  ),
-                                  color: kWhite.withValues(alpha: 0.08),
+                              ),
+                              Container(
+                                width: 1,
+                                height: 40,
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 12,
                                 ),
-                                Expanded(
-                                  child: _ToggleRow(
-                                    label: l10n.dualPrimary,
-                                    value: _dualPrimary,
-                                    onChanged: (v) =>
-                                        _handleFlagChanged(doublePrimary: v),
-                                  ),
+                                color: kWhite.withValues(alpha: 0.08),
+                              ),
+                              Expanded(
+                                child: _ToggleRow(
+                                  label: l10n.dualPrimary,
+                                  value: _dualPrimary,
+                                  onChanged: (v) =>
+                                      _handleFlagChanged(doublePrimary: v),
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
                         ),
+                      ),
 
-                        const SizedBox(height: 12),
+                      const SizedBox(height: 12),
 
-                        // ── Gaze Detail card ─────────────────────
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 12,
-                            ),
-                            decoration: BoxDecoration(
-                              color: kDarkBlue,
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    Opacity(
-                                      opacity: 0.5,
-                                      child: Text(
-                                        l10n.gazeDetail,
-                                        style: GoogleFonts.bricolageGrotesque(
-                                          fontSize: 12,
-                                          color: kWhite,
-                                        ),
-                                      ),
-                                    ),
-                                    const Spacer(),
-                                    TextButton(
-                                      onPressed: _handleOpenUpdateSheet,
-                                      style: TextButton.styleFrom(
-                                        backgroundColor: kBlack,
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 4,
-                                        ),
-                                        minimumSize: Size.zero,
-                                        tapTargetSize:
-                                            MaterialTapTargetSize.shrinkWrap,
-                                      ),
-                                      child: Text(
-                                        l10n.update,
-                                        style: GoogleFonts.bricolageGrotesque(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
-                                          color: kWhite,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  _current.name,
-                                  style: GoogleFonts.bricolageGrotesque(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.w700,
-                                    color: kWhite,
-                                  ),
-                                ),
-                                if (_current.notes != null) ...[
-                                  const SizedBox(height: 4),
+                      // ── Gaze Detail card ─────────────────────
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: kDarkBlue,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
                                   Opacity(
-                                    opacity: 0.75,
+                                    opacity: 0.5,
                                     child: Text(
-                                      _current.notes!,
+                                      l10n.gazeDetail,
                                       style: GoogleFonts.bricolageGrotesque(
-                                        fontSize: 14,
+                                        fontSize: 12,
+                                        color: kWhite,
+                                      ),
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  TextButton(
+                                    onPressed: _handleOpenUpdateSheet,
+                                    style: TextButton.styleFrom(
+                                      backgroundColor: kBlack,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 4,
+                                      ),
+                                      minimumSize: Size.zero,
+                                      tapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                    ),
+                                    child: Text(
+                                      l10n.update,
+                                      style: GoogleFonts.bricolageGrotesque(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
                                         color: kWhite,
                                       ),
                                     ),
                                   ),
                                 ],
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                _current.name,
+                                style: GoogleFonts.bricolageGrotesque(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w700,
+                                  color: kWhite,
+                                ),
+                              ),
+                              if (_current.notes != null) ...[
                                 const SizedBox(height: 4),
+                                Opacity(
+                                  opacity: 0.75,
+                                  child: Text(
+                                    _current.notes!,
+                                    style: GoogleFonts.bricolageGrotesque(
+                                      fontSize: 14,
+                                      color: kWhite,
+                                    ),
+                                  ),
+                                ),
                               ],
-                            ),
+                              const SizedBox(height: 4),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 12),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
