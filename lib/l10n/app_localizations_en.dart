@@ -208,4 +208,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get textDefault => 'Text';
+
+  @override
+  String get onboardingWelcomeTitle => 'Welcome to 9Gaze';
+
+  @override
+  String get onboardingWelcomeBody =>
+      'Import your eye movement photos from the gallery and arrange them into a clean, labeled 3×3 grid. Auto-alignment handles the framing; you can fine-tune any slot. Export one composed image when you are done.';
+
+  @override
+  String get onboardingNext => 'Next';
 }

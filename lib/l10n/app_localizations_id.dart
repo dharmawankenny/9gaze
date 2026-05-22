@@ -208,4 +208,14 @@ class AppLocalizationsId extends AppLocalizations {
 
   @override
   String get textDefault => 'Teks';
+
+  @override
+  String get onboardingWelcomeTitle => 'Selamat datang di 9Gaze';
+
+  @override
+  String get onboardingWelcomeBody =>
+      'Impor foto gerakan mata dari galeri dan susun menjadi grid 3×3 berlabel yang rapi. Penjajaran otomatis mengatur bingkai; Anda bisa menyesuaikan slot mana pun. Ekspor satu gambar komposit jika sudah selesai.';
+
+  @override
+  String get onboardingNext => 'Lanjut';
 }

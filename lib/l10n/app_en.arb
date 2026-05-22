@@ -78,5 +78,8 @@
   "replace": "Replace",
   "exportVerb": "Export",
   "exportDone": "Exported",
-  "textDefault": "Text"
+  "textDefault": "Text",
+  "onboardingWelcomeTitle": "Welcome to 9Gaze",
+  "onboardingWelcomeBody": "Import your eye movement photos from the gallery and arrange them into a clean, labeled 3×3 grid. Auto-alignment handles the framing; you can fine-tune any slot. Export one composed image when you are done.",
+  "onboardingNext": "Next"
 }

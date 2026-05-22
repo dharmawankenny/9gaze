@@ -9,6 +9,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:kensa_9gaze/app/theme.dart';
 import 'package:kensa_9gaze/db/database_provider.dart';
 import 'package:kensa_9gaze/screens/home/home_screen.dart';
+import 'package:kensa_9gaze/services/onboarding/onboarding_controller.dart';
+import 'package:kensa_9gaze/widgets/onboarding/onboarding_scope.dart';
 
 void main() {
   // Preserve the native splash until Flutter signals ready.
@@ -32,23 +34,45 @@ void removeSplash() => FlutterNativeSplash.remove();
 
 /// Root application widget that wires up the dark theme
 /// and launches the home screen.
-class NineGazeApp extends StatelessWidget {
+class NineGazeApp extends StatefulWidget {
   const NineGazeApp({super.key});
 
   @override
+  State<NineGazeApp> createState() => _NineGazeAppState();
+}
+
+class _NineGazeAppState extends State<NineGazeApp> {
+  late final OnboardingController _onboardingController;
+
+  @override
+  void initState() {
+    super.initState();
+    _onboardingController = OnboardingController(appDatabase);
+  }
+
+  @override
+  void dispose() {
+    _onboardingController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      onGenerateTitle: (context) => AppLocalizations.of(context)!.appTitle,
-      debugShowCheckedModeBanner: false,
-      localizationsDelegates: const [
-        AppLocalizations.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: const [Locale('en'), Locale('id')],
-      theme: AppTheme.darkTheme,
-      home: const HomeScreen(),
+    return OnboardingScope(
+      controller: _onboardingController,
+      child: MaterialApp(
+        onGenerateTitle: (context) => AppLocalizations.of(context)!.appTitle,
+        debugShowCheckedModeBanner: false,
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: const [Locale('en'), Locale('id')],
+        theme: AppTheme.darkTheme,
+        home: const HomeScreen(),
+      ),
     );
   }
 }

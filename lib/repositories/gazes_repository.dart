@@ -35,6 +35,13 @@ class GazesRepository {
     return (_db.select(_db.gazes)..where((g) => g.id.equals(id))).getSingle();
   }
 
+  /// Returns how many gaze rows exist (for onboarding eligibility).
+  Future<int> count() {
+    final countExp = _db.gazes.id.count();
+    final query = _db.selectOnly(_db.gazes)..addColumns([countExp]);
+    return query.map((row) => row.read(countExp)!).getSingle();
+  }
+
   /// Returns all gazes ordered by most recently updated first.
   Future<List<Gaze>> getAll() {
     return (_db.select(

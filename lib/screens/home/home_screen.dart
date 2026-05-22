@@ -15,7 +15,11 @@ import 'package:kensa_9gaze/screens/home/widgets/home_search_bar.dart';
 import 'package:kensa_9gaze/screens/home/widgets/home_top_bar.dart';
 import 'package:kensa_9gaze/screens/home/widgets/new_gaze_button.dart';
 import 'package:kensa_9gaze/screens/home/widgets/new_gaze_sheet.dart';
+import 'package:kensa_9gaze/services/onboarding/onboarding_controller.dart';
+import 'package:kensa_9gaze/services/onboarding/onboarding_step.dart';
 import 'package:kensa_9gaze/services/thumbnail_backfill.dart';
+import 'package:kensa_9gaze/widgets/onboarding/onboarding_scope.dart';
+import 'package:kensa_9gaze/widgets/onboarding/welcome_onboarding_page.dart';
 
 /// Root screen for the home tab. Holds the gazes stream so the
 /// list and the bottom button share one subscription.
@@ -35,6 +39,7 @@ class _HomeScreenState extends State<HomeScreen> {
   late final Stream<List<Gaze>> _gazesStream;
   final _searchController = TextEditingController();
   String _query = '';
+  bool _onboardingBootstrapDone = false;
 
   @override
   void initState() {
@@ -43,7 +48,47 @@ class _HomeScreenState extends State<HomeScreen> {
     // Background one-time migration for legacy slots created before
     // thumbnail support existed. Non-blocking and safe to rerun.
     Future<void>.microtask(() => ThumbnailBackfill.runOnce(appDatabase));
-    WidgetsBinding.instance.addPostFrameCallback((_) => removeSplash());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      removeSplash();
+      _bootstrapOnboarding();
+    });
+  }
+
+  /// Starts the welcome tour when first-run eligibility passes.
+  Future<void> _bootstrapOnboarding() async {
+    if (_onboardingBootstrapDone || !mounted) return;
+    _onboardingBootstrapDone = true;
+
+    final onboarding = OnboardingScope.of(context);
+    final eligible = await onboarding.startIfEligible();
+    if (!eligible || !mounted) return;
+    if (onboarding.currentStep != OnboardingStep.welcome) return;
+
+    await _showWelcomeDialog(onboarding);
+  }
+
+  /// Presents step 1; on Next advances to home list showcase (Phase 2).
+  Future<void> _showWelcomeDialog(OnboardingController onboarding) async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      useSafeArea: true,
+      builder: (dialogContext) {
+        return PopScope(
+          canPop: false,
+          child: Dialog.fullscreen(
+            backgroundColor: Colors.black,
+            child: WelcomeOnboardingPage(
+              onNext: () => Navigator.of(dialogContext).pop(),
+            ),
+          ),
+        );
+      },
+    );
+
+    if (!mounted) return;
+    onboarding.advance(step: OnboardingStep.homeEmptyList);
+    onboarding.startShowcaseForCurrentStep();
   }
 
   @override
