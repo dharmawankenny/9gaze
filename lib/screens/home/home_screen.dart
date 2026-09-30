@@ -19,6 +19,7 @@ import 'package:kensa_9gaze/services/onboarding/onboarding_controller.dart';
 import 'package:kensa_9gaze/services/onboarding/onboarding_step.dart';
 import 'package:kensa_9gaze/services/thumbnail_backfill.dart';
 import 'package:kensa_9gaze/widgets/onboarding/onboarding_scope.dart';
+import 'package:kensa_9gaze/widgets/onboarding/onboarding_target.dart';
 import 'package:kensa_9gaze/widgets/onboarding/welcome_onboarding_page.dart';
 
 /// Root screen for the home tab. Holds the gazes stream so the
@@ -104,6 +105,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// Opens the new-gaze bottom sheet.
   void _handleNewGaze() {
+    final onboarding = OnboardingScope.maybeOf(context);
+    if (onboarding?.isActive == true &&
+        onboarding!.currentStep == OnboardingStep.homeCreateButton) {
+      // Tap is handled by [OnboardingTarget.onTargetClick] to avoid
+      // opening the sheet twice.
+      return;
+    }
+    _openNewGazeSheet();
+  }
+
+  void _openNewGazeSheet() {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -113,6 +125,28 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       builder: (_) => const NewGazeSheet(),
     );
+  }
+
+  void _maybeStartHomeShowcase({
+    required OnboardingController onboarding,
+    required bool isLoading,
+    required bool isEmptyList,
+    required bool isFiltered,
+  }) {
+    if (!onboarding.isActive || isLoading) return;
+
+    switch (onboarding.currentStep) {
+      case OnboardingStep.homeEmptyList:
+        if (isEmptyList && !isFiltered) {
+          onboarding.startShowcaseForCurrentStep();
+        }
+        break;
+      case OnboardingStep.homeCreateButton:
+        onboarding.startShowcaseForCurrentStep();
+        break;
+      default:
+        break;
+    }
   }
 
   /// Filters [all] by the current [_query] (case-insensitive
@@ -125,45 +159,72 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<List<Gaze>>(
-      stream: _gazesStream,
-      builder: (context, snapshot) {
-        final allGazes = snapshot.data ?? [];
-        final hasEntries = allGazes.isNotEmpty;
-        final filtered = _applyFilter(allGazes);
+    final onboarding = OnboardingScope.of(context);
 
-        return Scaffold(
-          body: SafeArea(
-            bottom: false,
-            child: Column(
-              children: [
-                const SizedBox(height: 16),
-                const HomeTopBar(),
-                // Search bar hidden when no entries exist at all.
-                if (hasEntries) ...[
-                  const SizedBox(height: 20),
-                  HomeSearchBar(
-                    controller: _searchController,
-                    onChanged: _handleSearchChanged,
-                  ),
-                ],
-                Expanded(
-                  child: GazeListView(
-                    gazes: filtered,
-                    isLoading:
-                        snapshot.connectionState == ConnectionState.waiting,
-                    hasError: snapshot.hasError,
-                    isFiltered: _query.isNotEmpty,
-                    onDelete: (gaze) => _repo.delete(gaze.id),
-                  ),
+    return ListenableBuilder(
+      listenable: onboarding,
+      builder: (context, _) {
+        return StreamBuilder<List<Gaze>>(
+          stream: _gazesStream,
+          builder: (context, snapshot) {
+            final allGazes = snapshot.data ?? [];
+            final hasEntries = allGazes.isNotEmpty;
+            final filtered = _applyFilter(allGazes);
+            final isLoading =
+                snapshot.connectionState == ConnectionState.waiting;
+
+            if (onboarding.isActive) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                _maybeStartHomeShowcase(
+                  onboarding: onboarding,
+                  isLoading: isLoading,
+                  isEmptyList: allGazes.isEmpty,
+                  isFiltered: _query.isNotEmpty,
+                );
+              });
+            }
+
+            return Scaffold(
+              body: SafeArea(
+                bottom: false,
+                child: Column(
+                  children: [
+                    const SizedBox(height: 16),
+                    const HomeTopBar(),
+                    if (hasEntries) ...[
+                      const SizedBox(height: 20),
+                      HomeSearchBar(
+                        controller: _searchController,
+                        onChanged: _handleSearchChanged,
+                      ),
+                    ],
+                    Expanded(
+                      child: GazeListView(
+                        gazes: filtered,
+                        isLoading: isLoading,
+                        hasError: snapshot.hasError,
+                        isFiltered: _query.isNotEmpty,
+                        onDelete: (gaze) => _repo.delete(gaze.id),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
-          bottomNavigationBar: NewGazeButton(
-            onPressed: _handleNewGaze,
-            showFace: hasEntries,
-          ),
+              ),
+              bottomNavigationBar: OnboardingTarget(
+                step: OnboardingStep.homeCreateButton,
+                targetBorderRadius: BorderRadius.circular(50),
+                onTargetTap: () {
+                  onboarding.advance(step: OnboardingStep.createName);
+                  _openNewGazeSheet();
+                },
+                child: NewGazeButton(
+                  onPressed: _handleNewGaze,
+                  showFace: hasEntries,
+                ),
+              ),
+            );
+          },
         );
       },
     );

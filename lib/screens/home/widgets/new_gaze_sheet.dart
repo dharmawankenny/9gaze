@@ -11,7 +11,11 @@ import 'package:kensa_9gaze/app/theme.dart';
 import 'package:kensa_9gaze/db/database_provider.dart';
 import 'package:kensa_9gaze/repositories/gazes_repository.dart';
 import 'package:kensa_9gaze/screens/gaze_detail/gaze_detail_screen.dart';
+import 'package:kensa_9gaze/services/onboarding/onboarding_controller.dart';
+import 'package:kensa_9gaze/services/onboarding/onboarding_step.dart';
 import 'package:kensa_9gaze/widgets/animated_gaze_face.dart';
+import 'package:kensa_9gaze/widgets/onboarding/onboarding_scope.dart';
+import 'package:kensa_9gaze/widgets/onboarding/onboarding_target.dart';
 
 /// Modal bottom sheet content for the "New Gaze" flow.
 ///
@@ -36,12 +40,65 @@ class _NewGazeSheetState extends State<NewGazeSheet> {
   /// True after a successful insert, triggers the confirmation UI.
   bool _submitted = false;
 
+  OnboardingController? _onboarding;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController.addListener(_syncCreateNameAdvanceEnabled);
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _tryStartSheetShowcase(),
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final next = OnboardingScope.maybeOf(context);
+    if (next != _onboarding) {
+      _onboarding?.removeListener(_onOnboardingStepChanged);
+      _onboarding = next;
+      _onboarding?.addListener(_onOnboardingStepChanged);
+    }
+  }
+
   @override
   void dispose() {
+    _onboarding?.removeListener(_onOnboardingStepChanged);
     _nameController.dispose();
     _notesController.dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  void _onOnboardingStepChanged() {
+    _syncCreateNameAdvanceEnabled();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _tryStartSheetShowcase());
+  }
+
+  /// Enables tooltip Next once the gaze name field has text.
+  void _syncCreateNameAdvanceEnabled() {
+    final onboarding = _onboarding;
+    if (onboarding == null ||
+        !onboarding.isActive ||
+        onboarding.currentStep != OnboardingStep.createName) {
+      return;
+    }
+    onboarding.setCreateNameAdvanceEnabled(
+      _nameController.text.trim().isNotEmpty,
+    );
+  }
+
+  void _tryStartSheetShowcase() {
+    final onboarding = _onboarding;
+    if (onboarding == null || !onboarding.isActive || !mounted) return;
+
+    final step = onboarding.currentStep;
+    if (step == OnboardingStep.createName ||
+        step == OnboardingStep.createNotes ||
+        step == OnboardingStep.createSubmit) {
+      onboarding.startShowcaseForCurrentStep();
+    }
   }
 
   /// Validates, inserts the gaze, shows confirmation, closes the
@@ -114,7 +171,10 @@ class _NewGazeSheetState extends State<NewGazeSheet> {
           ),
 
           // ── Gaze detail name field ───────────────────────────────
-          Container(
+          OnboardingTarget(
+            step: OnboardingStep.createName,
+            targetBorderRadius: BorderRadius.circular(50),
+            child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
             decoration: BoxDecoration(
               color: kDarkBlue,
@@ -141,11 +201,15 @@ class _NewGazeSheetState extends State<NewGazeSheet> {
               ),
             ),
           ),
+          ),
 
           const SizedBox(height: 12),
 
           // ── Notes textarea ───────────────────────────────────
-          Container(
+          OnboardingTarget(
+            step: OnboardingStep.createNotes,
+            targetBorderRadius: BorderRadius.circular(16),
+            child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
             decoration: BoxDecoration(
               color: kDarkBlue,
@@ -171,15 +235,42 @@ class _NewGazeSheetState extends State<NewGazeSheet> {
               ),
             ),
           ),
+          ),
 
           const SizedBox(height: 12),
 
           // ── Submit button ────────────────────────────────────
-          SizedBox(
+          OnboardingTarget(
+            step: OnboardingStep.createSubmit,
+            targetBorderRadius: BorderRadius.circular(50),
+            onTargetTap: _submitted
+                ? null
+                : () {
+                    final onboarding = OnboardingScope.maybeOf(context);
+                    if (onboarding?.isActive == true &&
+                        onboarding!.currentStep ==
+                            OnboardingStep.createSubmit) {
+                      onboarding.advance(
+                        step: OnboardingStep.detailSlotsGrid,
+                      );
+                    }
+                    _handleSubmit();
+                  },
+            child: SizedBox(
             width: double.infinity,
             height: 48,
             child: ElevatedButton(
-              onPressed: _submitted ? null : _handleSubmit,
+              onPressed: _submitted
+                  ? null
+                  : () {
+                      final onboarding = OnboardingScope.maybeOf(context);
+                      if (onboarding?.isActive == true &&
+                          onboarding!.currentStep ==
+                              OnboardingStep.createSubmit) {
+                        return;
+                      }
+                      _handleSubmit();
+                    },
               style: ElevatedButton.styleFrom(
                 backgroundColor: _submitted
                     ? kAccentBlue.withValues(alpha: 0.6)
@@ -199,6 +290,7 @@ class _NewGazeSheetState extends State<NewGazeSheet> {
                   ? _buildSubmittedContent(l10n)
                   : _buildIdleContent(l10n),
             ),
+          ),
           ),
         ],
       ),

@@ -499,6 +499,102 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Next'**
   String get onboardingNext;
+
+  /// No description provided for @onboardingGotIt.
+  ///
+  /// In en, this message translates to:
+  /// **'Got it'**
+  String get onboardingGotIt;
+
+  /// No description provided for @onboardingSkipTour.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip tour'**
+  String get onboardingSkipTour;
+
+  /// No description provided for @onboardingSkipConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip the tour?'**
+  String get onboardingSkipConfirmTitle;
+
+  /// No description provided for @onboardingSkipConfirmBody.
+  ///
+  /// In en, this message translates to:
+  /// **'You can restart the tutorial anytime from the settings menu.'**
+  String get onboardingSkipConfirmBody;
+
+  /// No description provided for @onboardingHomeEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Your saved grids'**
+  String get onboardingHomeEmptyTitle;
+
+  /// No description provided for @onboardingHomeEmptyBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Each gaze you create appears here. You have not made one yet. Tap the blue button below to start your first labeled grid.'**
+  String get onboardingHomeEmptyBody;
+
+  /// No description provided for @onboardingHomeCreateTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Create a gaze'**
+  String get onboardingHomeCreateTitle;
+
+  /// No description provided for @onboardingHomeCreateBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap New Gaze to name your grid and begin importing photos.'**
+  String get onboardingHomeCreateBody;
+
+  /// No description provided for @onboardingCreateNameTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Name this gaze'**
+  String get onboardingCreateNameTitle;
+
+  /// No description provided for @onboardingCreateNameBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Only a name is required. Choose something you will recognize in the list.'**
+  String get onboardingCreateNameBody;
+
+  /// No description provided for @onboardingCreateNotesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Notes (optional)'**
+  String get onboardingCreateNotesTitle;
+
+  /// No description provided for @onboardingCreateNotesBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Optional notes for your own reference, such as a session label or date.'**
+  String get onboardingCreateNotesBody;
+
+  /// No description provided for @onboardingCreateSubmitTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Open your grid'**
+  String get onboardingCreateSubmitTitle;
+
+  /// No description provided for @onboardingCreateSubmitBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap Create Gaze. You will assign photos to each labeled slot next.'**
+  String get onboardingCreateSubmitBody;
+
+  /// No description provided for @onboardingDetailSlotsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Nine labeled slots'**
+  String get onboardingDetailSlotsTitle;
+
+  /// No description provided for @onboardingDetailSlotsBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Each slot matches a gaze direction. Tap a slot to import one photo from your gallery.'**
+  String get onboardingDetailSlotsBody;
 }
 
 class _AppLocalizationsDelegate

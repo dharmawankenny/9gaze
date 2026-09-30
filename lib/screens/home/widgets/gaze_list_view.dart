@@ -9,7 +9,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:kensa_9gaze/app/theme.dart';
 import 'package:kensa_9gaze/db/app_database.dart';
 import 'package:kensa_9gaze/screens/home/widgets/gaze_list_item.dart';
+import 'package:kensa_9gaze/services/onboarding/onboarding_step.dart';
 import 'package:kensa_9gaze/widgets/animated_gaze_face.dart';
+import 'package:kensa_9gaze/widgets/onboarding/onboarding_target.dart';
 
 /// Renders the gaze list or an appropriate empty/error/loading
 /// state. Data is supplied by the parent so the stream is not
@@ -99,24 +101,45 @@ class _EmptyState extends StatelessWidget {
     final faceSize = MediaQuery.sizeOf(context).width / 2;
     final message = isFiltered ? l10n.noGazeFound : l10n.noGazeYet;
 
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Opacity(opacity: 0.5, child: AnimatedGazeFace(size: faceSize)),
-          Container(
-            alignment: Alignment.center,
-            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 32),
-            child: Text(
-              message,
-              textAlign: TextAlign.center,
-              style: GoogleFonts.bricolageGrotesque(
-                color: kWhite.withValues(alpha: 0.3),
-                fontSize: 16,
-              ),
+    final messageText = Text(
+      message,
+      textAlign: TextAlign.center,
+      style: GoogleFonts.bricolageGrotesque(
+        color: kWhite.withValues(alpha: 0.3),
+        fontSize: 16,
+      ),
+    );
+
+    if (isFiltered) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Opacity(opacity: 0.5, child: AnimatedGazeFace(size: faceSize)),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
+              child: messageText,
             ),
-          ),
-        ],
+          ],
+        ),
+      );
+    }
+
+    return Center(
+      child: OnboardingTarget(
+        step: OnboardingStep.homeEmptyList,
+        targetBorderRadius: BorderRadius.circular(24),
+        targetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Opacity(opacity: 0.5, child: AnimatedGazeFace(size: faceSize)),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
+              child: messageText,
+            ),
+          ],
+        ),
       ),
     );
   }

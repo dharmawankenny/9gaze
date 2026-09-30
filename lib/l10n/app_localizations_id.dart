@@ -218,4 +218,59 @@ class AppLocalizationsId extends AppLocalizations {
 
   @override
   String get onboardingNext => 'Lanjut';
+
+  @override
+  String get onboardingGotIt => 'Mengerti';
+
+  @override
+  String get onboardingSkipTour => 'Lewati tur';
+
+  @override
+  String get onboardingSkipConfirmTitle => 'Lewati tur?';
+
+  @override
+  String get onboardingSkipConfirmBody =>
+      'Anda bisa memulai ulang tutorial kapan saja dari menu pengaturan.';
+
+  @override
+  String get onboardingHomeEmptyTitle => 'Grid tersimpan Anda';
+
+  @override
+  String get onboardingHomeEmptyBody =>
+      'Setiap tatapan yang Anda buat muncul di sini. Belum ada. Ketuk tombol biru di bawah untuk memulai grid berlabel pertama.';
+
+  @override
+  String get onboardingHomeCreateTitle => 'Buat tatapan';
+
+  @override
+  String get onboardingHomeCreateBody =>
+      'Ketuk Tatapan Baru untuk memberi nama grid dan mulai mengimpor foto.';
+
+  @override
+  String get onboardingCreateNameTitle => 'Nama tatapan ini';
+
+  @override
+  String get onboardingCreateNameBody =>
+      'Hanya nama yang wajib. Pilih nama yang mudah dikenali di daftar.';
+
+  @override
+  String get onboardingCreateNotesTitle => 'Catatan (opsional)';
+
+  @override
+  String get onboardingCreateNotesBody =>
+      'Catatan opsional untuk referensi Anda, misalnya label sesi atau tanggal.';
+
+  @override
+  String get onboardingCreateSubmitTitle => 'Buka grid Anda';
+
+  @override
+  String get onboardingCreateSubmitBody =>
+      'Ketuk Buat Tatapan. Berikutnya Anda menetapkan foto ke setiap slot berlabel.';
+
+  @override
+  String get onboardingDetailSlotsTitle => 'Sembilan slot berlabel';
+
+  @override
+  String get onboardingDetailSlotsBody =>
+      'Setiap slot sesuai arah tatapan. Ketuk slot untuk mengimpor satu foto dari galeri.';
 }

@@ -303,7 +303,7 @@ flowchart TD
 
 - [x] Phase 0 — Foundation (deps, controller, ARB, bootstrap)
 - [x] Phase 1 — Welcome dialog
-- [ ] Phase 2 — Home + create sheet
+- [x] Phase 2 — Home + create sheet
 - [ ] Phase 3 — Gaze detail intro
 - [ ] Phase 4 — Photo pick + slot editor
 - [ ] Phase 5 — Bulk edit

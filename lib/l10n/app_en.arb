@@ -81,5 +81,21 @@
   "textDefault": "Text",
   "onboardingWelcomeTitle": "Welcome to 9Gaze",
   "onboardingWelcomeBody": "Import your eye movement photos from the gallery and arrange them into a clean, labeled 3×3 grid. Auto-alignment handles the framing; you can fine-tune any slot. Export one composed image when you are done.",
-  "onboardingNext": "Next"
+  "onboardingNext": "Next",
+  "onboardingGotIt": "Got it",
+  "onboardingSkipTour": "Skip tour",
+  "onboardingSkipConfirmTitle": "Skip the tour?",
+  "onboardingSkipConfirmBody": "You can restart the tutorial anytime from the settings menu.",
+  "onboardingHomeEmptyTitle": "Your saved grids",
+  "onboardingHomeEmptyBody": "Each gaze you create appears here. You have not made one yet. Tap the blue button below to start your first labeled grid.",
+  "onboardingHomeCreateTitle": "Create a gaze",
+  "onboardingHomeCreateBody": "Tap New Gaze to name your grid and begin importing photos.",
+  "onboardingCreateNameTitle": "Name this gaze",
+  "onboardingCreateNameBody": "Only a name is required. Choose something you will recognize in the list.",
+  "onboardingCreateNotesTitle": "Notes (optional)",
+  "onboardingCreateNotesBody": "Optional notes for your own reference, such as a session label or date.",
+  "onboardingCreateSubmitTitle": "Open your grid",
+  "onboardingCreateSubmitBody": "Tap Create Gaze. You will assign photos to each labeled slot next.",
+  "onboardingDetailSlotsTitle": "Nine labeled slots",
+  "onboardingDetailSlotsBody": "Each slot matches a gaze direction. Tap a slot to import one photo from your gallery."
 }

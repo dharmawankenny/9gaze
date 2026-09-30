@@ -218,4 +218,59 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get onboardingNext => 'Next';
+
+  @override
+  String get onboardingGotIt => 'Got it';
+
+  @override
+  String get onboardingSkipTour => 'Skip tour';
+
+  @override
+  String get onboardingSkipConfirmTitle => 'Skip the tour?';
+
+  @override
+  String get onboardingSkipConfirmBody =>
+      'You can restart the tutorial anytime from the settings menu.';
+
+  @override
+  String get onboardingHomeEmptyTitle => 'Your saved grids';
+
+  @override
+  String get onboardingHomeEmptyBody =>
+      'Each gaze you create appears here. You have not made one yet. Tap the blue button below to start your first labeled grid.';
+
+  @override
+  String get onboardingHomeCreateTitle => 'Create a gaze';
+
+  @override
+  String get onboardingHomeCreateBody =>
+      'Tap New Gaze to name your grid and begin importing photos.';
+
+  @override
+  String get onboardingCreateNameTitle => 'Name this gaze';
+
+  @override
+  String get onboardingCreateNameBody =>
+      'Only a name is required. Choose something you will recognize in the list.';
+
+  @override
+  String get onboardingCreateNotesTitle => 'Notes (optional)';
+
+  @override
+  String get onboardingCreateNotesBody =>
+      'Optional notes for your own reference, such as a session label or date.';
+
+  @override
+  String get onboardingCreateSubmitTitle => 'Open your grid';
+
+  @override
+  String get onboardingCreateSubmitBody =>
+      'Tap Create Gaze. You will assign photos to each labeled slot next.';
+
+  @override
+  String get onboardingDetailSlotsTitle => 'Nine labeled slots';
+
+  @override
+  String get onboardingDetailSlotsBody =>
+      'Each slot matches a gaze direction. Tap a slot to import one photo from your gallery.';
 }

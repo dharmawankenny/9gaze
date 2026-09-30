@@ -48,6 +48,7 @@ class _NineGazeAppState extends State<NineGazeApp> {
   void initState() {
     super.initState();
     _onboardingController = OnboardingController(appDatabase);
+    OnboardingController.ensureShowcaseRegistered();
   }
 
   @override

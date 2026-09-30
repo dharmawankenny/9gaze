@@ -66,5 +66,21 @@
   "textDefault": "Teks",
   "onboardingWelcomeTitle": "Selamat datang di 9Gaze",
   "onboardingWelcomeBody": "Impor foto gerakan mata dari galeri dan susun menjadi grid 3×3 berlabel yang rapi. Penjajaran otomatis mengatur bingkai; Anda bisa menyesuaikan slot mana pun. Ekspor satu gambar komposit jika sudah selesai.",
-  "onboardingNext": "Lanjut"
+  "onboardingNext": "Lanjut",
+  "onboardingGotIt": "Mengerti",
+  "onboardingSkipTour": "Lewati tur",
+  "onboardingSkipConfirmTitle": "Lewati tur?",
+  "onboardingSkipConfirmBody": "Anda bisa memulai ulang tutorial kapan saja dari menu pengaturan.",
+  "onboardingHomeEmptyTitle": "Grid tersimpan Anda",
+  "onboardingHomeEmptyBody": "Setiap tatapan yang Anda buat muncul di sini. Belum ada. Ketuk tombol biru di bawah untuk memulai grid berlabel pertama.",
+  "onboardingHomeCreateTitle": "Buat tatapan",
+  "onboardingHomeCreateBody": "Ketuk Tatapan Baru untuk memberi nama grid dan mulai mengimpor foto.",
+  "onboardingCreateNameTitle": "Nama tatapan ini",
+  "onboardingCreateNameBody": "Hanya nama yang wajib. Pilih nama yang mudah dikenali di daftar.",
+  "onboardingCreateNotesTitle": "Catatan (opsional)",
+  "onboardingCreateNotesBody": "Catatan opsional untuk referensi Anda, misalnya label sesi atau tanggal.",
+  "onboardingCreateSubmitTitle": "Buka grid Anda",
+  "onboardingCreateSubmitBody": "Ketuk Buat Tatapan. Berikutnya Anda menetapkan foto ke setiap slot berlabel.",
+  "onboardingDetailSlotsTitle": "Sembilan slot berlabel",
+  "onboardingDetailSlotsBody": "Setiap slot sesuai arah tatapan. Ketuk slot untuk mengimpor satu foto dari galeri."
 }
