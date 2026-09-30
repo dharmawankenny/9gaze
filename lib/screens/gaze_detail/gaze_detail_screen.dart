@@ -19,6 +19,9 @@ import 'package:kensa_9gaze/screens/gaze_detail/update_gaze_sheet.dart';
 import 'package:kensa_9gaze/screens/gaze_detail/widgets/gaze_direction_grid.dart';
 import 'package:kensa_9gaze/services/gaze_exporter.dart';
 import 'package:kensa_9gaze/services/image_storage.dart';
+import 'package:kensa_9gaze/services/onboarding/onboarding_step.dart';
+import 'package:kensa_9gaze/widgets/onboarding/onboarding_scope.dart';
+import 'package:kensa_9gaze/widgets/onboarding/onboarding_target.dart';
 import 'package:kensa_9gaze/services/text_overlay_layout.dart';
 import 'package:kensa_9gaze/services/thumbnail_renderer.dart';
 import 'package:kensa_9gaze/utils/undo_redo_stack.dart';
@@ -107,6 +110,10 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
   Timer? _textInputDebounce;
   _TextEditorSnapshot? _textTypingStart;
 
+  /// Waits for the push animation before starting the detail showcase.
+  Animation<double>? _routeAnimation;
+  AnimationStatusListener? _routeStatusListener;
+
   @override
   void initState() {
     super.initState();
@@ -116,10 +123,51 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
     _current = widget.gaze;
     _compactMode = _current.isCompact;
     _dualPrimary = _current.isDoublePrimary;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _scheduleDetailOnboardingShowcase();
+    });
+  }
+
+  /// Starts the grid highlight after the push animation.
+  ///
+  /// A showcase started during the route transition is inserted under the
+  /// new page, so this waits until the route is current.
+  void _scheduleDetailOnboardingShowcase() {
+    final animation = ModalRoute.of(context)?.animation;
+    if (animation == null || animation.status == AnimationStatus.completed) {
+      _startDetailOnboardingShowcase();
+      return;
+    }
+    _routeAnimation = animation;
+    _routeStatusListener = (status) {
+      if (status != AnimationStatus.completed || !mounted) return;
+      animation.removeStatusListener(_routeStatusListener!);
+      _routeStatusListener = null;
+      _startDetailOnboardingShowcase();
+    };
+    animation.addStatusListener(_routeStatusListener!);
+  }
+
+  /// Dismisses any leftover overlay and starts the active detail step.
+  void _startDetailOnboardingShowcase() {
+    final onboarding = OnboardingScope.maybeOf(context);
+    final step = onboarding?.currentStep;
+    if (onboarding == null ||
+        !onboarding.isActive ||
+        step == null ||
+        !step.isGazeDetailIntro) {
+      return;
+    }
+    onboarding.dismissShowcase();
+    onboarding.startShowcaseForCurrentStep();
   }
 
   @override
   void dispose() {
+    if (_routeStatusListener != null) {
+      _routeAnimation?.removeStatusListener(_routeStatusListener!);
+    }
     _textInputDebounce?.cancel();
     _textInputController.dispose();
     super.dispose();
@@ -1527,39 +1575,43 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
               const SizedBox(height: 4),
 
               // ── 3×3 gaze direction grid ───────────────────────
-              GazeDirectionGrid(
-                gazeId: _current.id,
-                gazeExportName: _current.name,
-                isDoublePrimary: _dualPrimary,
-                isCompact: _compactMode,
-                isEditMode: _isRearrangeMode,
-                isRepositionMode: _isRepositionMode,
-                isCellTapEnabled: !_isAnyEditMode,
-                onDoublePrimaryEnabled: () =>
-                    _handleFlagChanged(doublePrimary: true),
-                onSaveEdits: _captureSlotEditChanges,
-                onPendingReorderChanged: _capturePendingReorderChanges,
-                onSaveReposition: _captureRepositionChanges,
-                onPendingRepositionChanged: _capturePendingRepositionChanges,
-                onCommitEditsBound: (fn) => _commitEdits = fn,
-                onCommitRepositionBound: (fn) => _commitReposition = fn,
-                onUndoRepositionBound: (fn) => _undoReposition = fn,
-                onRedoRepositionBound: (fn) => _redoReposition = fn,
-                onUndoRearrangeBound: (fn) => _undoRearrange = fn,
-                onRedoRearrangeBound: (fn) => _redoRearrange = fn,
-                onRearrangeUndoRedoChanged: (canUndo, canRedo) {
-                  _setStateSafely(() {
-                    _canUndoRearrange = canUndo;
-                    _canRedoRearrange = canRedo;
-                  });
-                },
-                onRepositionUndoRedoChanged: (canUndo, canRedo) {
-                  _setStateSafely(() {
-                    _canUndoReposition = canUndo;
-                    _canRedoReposition = canRedo;
-                  });
-                },
-                overlayBuilder: _buildOverlayLayer,
+              OnboardingTarget(
+                step: OnboardingStep.detailSlotsGrid,
+                targetBorderRadius: BorderRadius.circular(8),
+                child: GazeDirectionGrid(
+                  gazeId: _current.id,
+                  gazeExportName: _current.name,
+                  isDoublePrimary: _dualPrimary,
+                  isCompact: _compactMode,
+                  isEditMode: _isRearrangeMode,
+                  isRepositionMode: _isRepositionMode,
+                  isCellTapEnabled: !_isAnyEditMode,
+                  onDoublePrimaryEnabled: () =>
+                      _handleFlagChanged(doublePrimary: true),
+                  onSaveEdits: _captureSlotEditChanges,
+                  onPendingReorderChanged: _capturePendingReorderChanges,
+                  onSaveReposition: _captureRepositionChanges,
+                  onPendingRepositionChanged: _capturePendingRepositionChanges,
+                  onCommitEditsBound: (fn) => _commitEdits = fn,
+                  onCommitRepositionBound: (fn) => _commitReposition = fn,
+                  onUndoRepositionBound: (fn) => _undoReposition = fn,
+                  onRedoRepositionBound: (fn) => _redoReposition = fn,
+                  onUndoRearrangeBound: (fn) => _undoRearrange = fn,
+                  onRedoRearrangeBound: (fn) => _redoRearrange = fn,
+                  onRearrangeUndoRedoChanged: (canUndo, canRedo) {
+                    _setStateSafely(() {
+                      _canUndoRearrange = canUndo;
+                      _canRedoRearrange = canRedo;
+                    });
+                  },
+                  onRepositionUndoRedoChanged: (canUndo, canRedo) {
+                    _setStateSafely(() {
+                      _canUndoReposition = canUndo;
+                      _canRedoReposition = canRedo;
+                    });
+                  },
+                  overlayBuilder: _buildOverlayLayer,
+                ),
               ),
 
               // ── Sections below greyed out in edit mode ────────
@@ -1574,43 +1626,49 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
                       const SizedBox(height: 12),
 
                       // ── Settings island ───────────────────────
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                          ).add(const EdgeInsets.only(top: 16)),
-                          decoration: BoxDecoration(
-                            color: kDarkBlue,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: _ToggleRow(
-                                  label: l10n.compactMode,
-                                  value: _compactMode,
-                                  onChanged: (v) =>
-                                      _handleFlagChanged(compact: v),
+                      OnboardingTarget(
+                        step: OnboardingStep.detailCompactDual,
+                        enableAutoScroll: true,
+                        scrollAlignment: 0.72,
+                        targetBorderRadius: BorderRadius.circular(16),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                            ).add(const EdgeInsets.only(top: 16)),
+                            decoration: BoxDecoration(
+                              color: kDarkBlue,
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: _ToggleRow(
+                                    label: l10n.compactMode,
+                                    value: _compactMode,
+                                    onChanged: (v) =>
+                                        _handleFlagChanged(compact: v),
+                                  ),
                                 ),
-                              ),
-                              Container(
-                                width: 1,
-                                height: 40,
-                                margin: const EdgeInsets.symmetric(
-                                  horizontal: 12,
+                                Container(
+                                  width: 1,
+                                  height: 40,
+                                  margin: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                  ),
+                                  color: kWhite.withValues(alpha: 0.08),
                                 ),
-                                color: kWhite.withValues(alpha: 0.08),
-                              ),
-                              Expanded(
-                                child: _ToggleRow(
-                                  label: l10n.dualPrimary,
-                                  value: _dualPrimary,
-                                  onChanged: (v) =>
-                                      _handleFlagChanged(doublePrimary: v),
+                                Expanded(
+                                  child: _ToggleRow(
+                                    label: l10n.dualPrimary,
+                                    value: _dualPrimary,
+                                    onChanged: (v) =>
+                                        _handleFlagChanged(doublePrimary: v),
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -1618,81 +1676,87 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
                       const SizedBox(height: 12),
 
                       // ── Gaze Detail card ─────────────────────
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 12,
-                          ),
-                          decoration: BoxDecoration(
-                            color: kDarkBlue,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [
-                                  Opacity(
-                                    opacity: 0.5,
-                                    child: Text(
-                                      l10n.gazeDetail,
-                                      style: GoogleFonts.bricolageGrotesque(
-                                        fontSize: 12,
-                                        color: kWhite,
+                      OnboardingTarget(
+                        step: OnboardingStep.detailInfoEdit,
+                        enableAutoScroll: true,
+                        scrollAlignment: 0.72,
+                        targetBorderRadius: BorderRadius.circular(16),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: kDarkBlue,
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    Opacity(
+                                      opacity: 0.5,
+                                      child: Text(
+                                        l10n.gazeDetail,
+                                        style: GoogleFonts.bricolageGrotesque(
+                                          fontSize: 12,
+                                          color: kWhite,
+                                        ),
                                       ),
                                     ),
+                                    const Spacer(),
+                                    TextButton(
+                                      onPressed: _handleOpenUpdateSheet,
+                                      style: TextButton.styleFrom(
+                                        backgroundColor: kBlack,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 4,
+                                        ),
+                                        minimumSize: Size.zero,
+                                        tapTargetSize:
+                                            MaterialTapTargetSize.shrinkWrap,
+                                      ),
+                                      child: Text(
+                                        l10n.update,
+                                        style: GoogleFonts.bricolageGrotesque(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: kWhite,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  _current.name,
+                                  style: GoogleFonts.bricolageGrotesque(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.w700,
+                                    color: kWhite,
                                   ),
-                                  const Spacer(),
-                                  TextButton(
-                                    onPressed: _handleOpenUpdateSheet,
-                                    style: TextButton.styleFrom(
-                                      backgroundColor: kBlack,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 4,
-                                      ),
-                                      minimumSize: Size.zero,
-                                      tapTargetSize:
-                                          MaterialTapTargetSize.shrinkWrap,
-                                    ),
+                                ),
+                                if (_current.notes != null) ...[
+                                  const SizedBox(height: 4),
+                                  Opacity(
+                                    opacity: 0.75,
                                     child: Text(
-                                      l10n.update,
+                                      _current.notes!,
                                       style: GoogleFonts.bricolageGrotesque(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
                                         color: kWhite,
                                       ),
                                     ),
                                   ),
                                 ],
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                _current.name,
-                                style: GoogleFonts.bricolageGrotesque(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.w700,
-                                  color: kWhite,
-                                ),
-                              ),
-                              if (_current.notes != null) ...[
                                 const SizedBox(height: 4),
-                                Opacity(
-                                  opacity: 0.75,
-                                  child: Text(
-                                    _current.notes!,
-                                    style: GoogleFonts.bricolageGrotesque(
-                                      fontSize: 14,
-                                      color: kWhite,
-                                    ),
-                                  ),
-                                ),
                               ],
-                              const SizedBox(height: 4),
-                            ],
+                            ),
                           ),
                         ),
                       ),

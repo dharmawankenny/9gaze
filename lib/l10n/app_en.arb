@@ -97,5 +97,15 @@
   "onboardingCreateSubmitTitle": "Open your grid",
   "onboardingCreateSubmitBody": "Tap Create Gaze. You will assign photos to each labeled slot next.",
   "onboardingDetailSlotsTitle": "Nine labeled slots",
-  "onboardingDetailSlotsBody": "Each slot matches a gaze direction. Tap a slot to import one photo from your gallery."
+  "onboardingDetailSlotsBody": "Each slot matches a gaze direction. Tap a slot to import one photo from your gallery. Select several photos at once and 9Gaze fills empty slots in order.",
+  "onboardingDetailPickTitle": "Import from gallery",
+  "onboardingDetailPickBody": "Tap a slot (centre is a good first pick) and choose one or more photos. No in-app camera needed.",
+  "onboardingDetailAutoAlignTitle": "Automatic eye alignment",
+  "onboardingDetailAutoAlignBody": "9Gaze detects the eye in each photo, centers it vertically, and fits the image to the horizontal boundaries of the slot so every cell looks consistently framed.",
+  "onboardingDetailFineTuneTitle": "Manual override",
+  "onboardingDetailFineTuneBody": "Auto-alignment is not perfect on every photo. Open a slot for full control, or use Edit on this screen to adjust positions in the grid.",
+  "onboardingDetailLayoutTitle": "Layout options",
+  "onboardingDetailLayoutBody": "Compact Mode uses shorter slot cells. Dual Primary splits the centre slot into top and bottom. Only one layout option can be active at a time.",
+  "onboardingDetailInfoTitle": "Gaze details",
+  "onboardingDetailInfoBody": "The name and notes for this grid are here. Tap Update to change them anytime."
 }

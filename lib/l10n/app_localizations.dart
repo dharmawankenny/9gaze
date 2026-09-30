@@ -593,8 +593,68 @@ abstract class AppLocalizations {
   /// No description provided for @onboardingDetailSlotsBody.
   ///
   /// In en, this message translates to:
-  /// **'Each slot matches a gaze direction. Tap a slot to import one photo from your gallery.'**
+  /// **'Each slot matches a gaze direction. Tap a slot to import one photo from your gallery. Select several photos at once and 9Gaze fills empty slots in order.'**
   String get onboardingDetailSlotsBody;
+
+  /// No description provided for @onboardingDetailPickTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Import from gallery'**
+  String get onboardingDetailPickTitle;
+
+  /// No description provided for @onboardingDetailPickBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap a slot (centre is a good first pick) and choose one or more photos. No in-app camera needed.'**
+  String get onboardingDetailPickBody;
+
+  /// No description provided for @onboardingDetailAutoAlignTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic eye alignment'**
+  String get onboardingDetailAutoAlignTitle;
+
+  /// No description provided for @onboardingDetailAutoAlignBody.
+  ///
+  /// In en, this message translates to:
+  /// **'9Gaze detects the eye in each photo, centers it vertically, and fits the image to the horizontal boundaries of the slot so every cell looks consistently framed.'**
+  String get onboardingDetailAutoAlignBody;
+
+  /// No description provided for @onboardingDetailFineTuneTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Manual override'**
+  String get onboardingDetailFineTuneTitle;
+
+  /// No description provided for @onboardingDetailFineTuneBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto-alignment is not perfect on every photo. Open a slot for full control, or use Edit on this screen to adjust positions in the grid.'**
+  String get onboardingDetailFineTuneBody;
+
+  /// No description provided for @onboardingDetailLayoutTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Layout options'**
+  String get onboardingDetailLayoutTitle;
+
+  /// No description provided for @onboardingDetailLayoutBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Compact Mode uses shorter slot cells. Dual Primary splits the centre slot into top and bottom. Only one layout option can be active at a time.'**
+  String get onboardingDetailLayoutBody;
+
+  /// No description provided for @onboardingDetailInfoTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Gaze details'**
+  String get onboardingDetailInfoTitle;
+
+  /// No description provided for @onboardingDetailInfoBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The name and notes for this grid are here. Tap Update to change them anytime.'**
+  String get onboardingDetailInfoBody;
 }
 
 class _AppLocalizationsDelegate

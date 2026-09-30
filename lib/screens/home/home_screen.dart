@@ -4,6 +4,7 @@
 // Owns the single gazes stream and the search query so both
 // the list and the button share state without extra streams.
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:kensa_9gaze/db/app_database.dart';
@@ -41,6 +42,10 @@ class _HomeScreenState extends State<HomeScreen> {
   final _searchController = TextEditingController();
   String _query = '';
   bool _onboardingBootstrapDone = false;
+  bool _onboardingBootstrapInFlight = false;
+
+  /// Debug only: tour restarts after the last gaze is deleted.
+  bool _debugSawSavedGazes = false;
 
   @override
   void initState() {
@@ -57,10 +62,25 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// Starts the welcome tour when first-run eligibility passes.
   Future<void> _bootstrapOnboarding() async {
-    if (_onboardingBootstrapDone || !mounted) return;
-    _onboardingBootstrapDone = true;
+    if (!mounted || _onboardingBootstrapInFlight) return;
+    if (_onboardingBootstrapDone && !kDebugMode) return;
 
     final onboarding = OnboardingScope.of(context);
+    if (onboarding.isActive) return;
+
+    _onboardingBootstrapInFlight = true;
+    _onboardingBootstrapDone = true;
+    try {
+      await _startOnboardingIfEligible(onboarding);
+    } finally {
+      if (mounted) _onboardingBootstrapInFlight = false;
+    }
+  }
+
+  /// Opens welcome when [onboarding] is eligible for this launch.
+  Future<void> _startOnboardingIfEligible(
+    OnboardingController onboarding,
+  ) async {
     final eligible = await onboarding.startIfEligible();
     if (!eligible || !mounted) return;
     if (onboarding.currentStep != OnboardingStep.welcome) return;
@@ -172,6 +192,17 @@ class _HomeScreenState extends State<HomeScreen> {
             final filtered = _applyFilter(allGazes);
             final isLoading =
                 snapshot.connectionState == ConnectionState.waiting;
+
+            if (kDebugMode && !isLoading && !snapshot.hasError) {
+              if (allGazes.isNotEmpty) {
+                _debugSawSavedGazes = true;
+              } else if (_debugSawSavedGazes && !onboarding.isActive) {
+                _debugSawSavedGazes = false;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  _bootstrapOnboarding();
+                });
+              }
+            }
 
             if (onboarding.isActive) {
               WidgetsBinding.instance.addPostFrameCallback((_) {

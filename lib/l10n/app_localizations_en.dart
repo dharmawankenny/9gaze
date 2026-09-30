@@ -272,5 +272,40 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get onboardingDetailSlotsBody =>
-      'Each slot matches a gaze direction. Tap a slot to import one photo from your gallery.';
+      'Each slot matches a gaze direction. Tap a slot to import one photo from your gallery. Select several photos at once and 9Gaze fills empty slots in order.';
+
+  @override
+  String get onboardingDetailPickTitle => 'Import from gallery';
+
+  @override
+  String get onboardingDetailPickBody =>
+      'Tap a slot (centre is a good first pick) and choose one or more photos. No in-app camera needed.';
+
+  @override
+  String get onboardingDetailAutoAlignTitle => 'Automatic eye alignment';
+
+  @override
+  String get onboardingDetailAutoAlignBody =>
+      '9Gaze detects the eye in each photo, centers it vertically, and fits the image to the horizontal boundaries of the slot so every cell looks consistently framed.';
+
+  @override
+  String get onboardingDetailFineTuneTitle => 'Manual override';
+
+  @override
+  String get onboardingDetailFineTuneBody =>
+      'Auto-alignment is not perfect on every photo. Open a slot for full control, or use Edit on this screen to adjust positions in the grid.';
+
+  @override
+  String get onboardingDetailLayoutTitle => 'Layout options';
+
+  @override
+  String get onboardingDetailLayoutBody =>
+      'Compact Mode uses shorter slot cells. Dual Primary splits the centre slot into top and bottom. Only one layout option can be active at a time.';
+
+  @override
+  String get onboardingDetailInfoTitle => 'Gaze details';
+
+  @override
+  String get onboardingDetailInfoBody =>
+      'The name and notes for this grid are here. Tap Update to change them anytime.';
 }

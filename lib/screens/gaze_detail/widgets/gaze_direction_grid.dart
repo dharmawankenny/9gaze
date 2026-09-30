@@ -31,7 +31,11 @@ import 'package:kensa_9gaze/repositories/gaze_slots_repository.dart';
 import 'package:kensa_9gaze/screens/slot_editor/slot_editor_screen.dart';
 import 'package:kensa_9gaze/services/face_aligner.dart';
 import 'package:kensa_9gaze/services/image_storage.dart';
+import 'package:kensa_9gaze/services/onboarding/onboarding_controller.dart';
+import 'package:kensa_9gaze/services/onboarding/onboarding_step.dart';
 import 'package:kensa_9gaze/services/thumbnail_renderer.dart';
+import 'package:kensa_9gaze/widgets/onboarding/onboarding_scope.dart';
+import 'package:kensa_9gaze/widgets/onboarding/onboarding_target.dart';
 import 'package:kensa_9gaze/utils/undo_redo_stack.dart';
 import 'package:kensa_9gaze/widgets/animated_gaze_face.dart';
 import 'package:kensa_9gaze/widgets/gaze_slot_image.dart';
@@ -108,7 +112,7 @@ class GazeDirectionGrid extends StatefulWidget {
   /// Receives map of slot DB id -> target transform values.
   final void Function(Map<int, SlotTransformPatch> updates)? onSaveReposition;
   final void Function(Map<int, SlotTransformPatch> updates)?
-      onPendingRepositionChanged;
+  onPendingRepositionChanged;
 
   /// Called once during initState with a callback that the parent
   /// can invoke to trigger [commitEdits] from outside the widget.
@@ -119,8 +123,7 @@ class GazeDirectionGrid extends StatefulWidget {
   final void Function(VoidCallback trigger)? onCommitRepositionBound;
 
   /// Fired whenever undo/redo availability changes in reposition mode.
-  final void Function(bool canUndo, bool canRedo)?
-      onRepositionUndoRedoChanged;
+  final void Function(bool canUndo, bool canRedo)? onRepositionUndoRedoChanged;
 
   /// Binds external undo/redo triggers to grid state methods.
   final void Function(VoidCallback trigger)? onUndoRepositionBound;
@@ -251,8 +254,7 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
   /// 10th slot when double-primary is active.
   List<SlotKey> _allEditableKeys() {
     final keys = List<SlotKey>.from(kGridSlotOrder);
-    if (widget.isDoublePrimary &&
-        !keys.contains(SlotKey.primarySecondary)) {
+    if (widget.isDoublePrimary && !keys.contains(SlotKey.primarySecondary)) {
       keys.add(SlotKey.primarySecondary);
     }
     return keys;
@@ -402,10 +404,22 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
     BuildContext context,
     SlotKey key,
     GazeSlot? existing,
-    Map<String, GazeSlot> slotMap,
-  ) async {
+    Map<String, GazeSlot> slotMap, {
+    bool fromOnboardingTarget = false,
+  }) async {
     if (!widget.isCellTapEnabled) return;
     if (_pickingInProgress.isNotEmpty) return;
+
+    final onboarding = OnboardingScope.maybeOf(context);
+    final step = onboarding != null && onboarding.isActive
+        ? onboarding.currentStep
+        : null;
+    if (_shouldIgnoreCellTap(
+      step,
+      fromOnboardingTarget: fromOnboardingTarget,
+    )) {
+      return;
+    }
 
     if (existing != null) {
       await _openEditor(context, key, existing);
@@ -413,6 +427,20 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
     }
 
     await _pickAndFillSlots(context, key, slotMap);
+  }
+
+  /// Blocks grid taps while an explain-only detail tooltip is up.
+  ///
+  /// The photo-pick step still accepts the highlighted slot tap.
+  bool _shouldIgnoreCellTap(
+    OnboardingStep? step, {
+    required bool fromOnboardingTarget,
+  }) {
+    if (step == null) return false;
+    if (step == OnboardingStep.detailPickSlot) {
+      return !fromOnboardingTarget;
+    }
+    return step.isGazeDetailIntro;
   }
 
   /// Computes the ordered list of empty slots available for filling,
@@ -438,9 +466,7 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
       ...order.sublist(startIdx),
       ...order.sublist(0, startIdx),
     ];
-    return reordered
-        .where((k) => slotMap[k.name] == null)
-        .toList();
+    return reordered.where((k) => slotMap[k.name] == null).toList();
   }
 
   /// Opens multi-photo picker for up to [availableSlots] photos,
@@ -451,8 +477,17 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
     SlotKey fromKey,
     Map<String, GazeSlot> slotMap,
   ) async {
+    final onboarding = OnboardingScope.maybeOf(context);
+    final awaitingFirstPhoto =
+        onboarding != null &&
+        onboarding.isActive &&
+        onboarding.currentStep == OnboardingStep.detailPickSlot;
+
     final targetSlots = _emptySlotsFronKey(fromKey, slotMap);
-    if (targetSlots.isEmpty) return;
+    if (targetSlots.isEmpty) {
+      _resumePickSlotShowcase(onboarding, awaitingFirstPhoto);
+      return;
+    }
 
     final picker = ImagePicker();
     List<XFile> picked;
@@ -463,17 +498,21 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
         source: ImageSource.gallery,
         imageQuality: 100,
       );
-      if (one == null || !mounted) return;
+      if (one == null || !mounted) {
+        _resumePickSlotShowcase(onboarding, awaitingFirstPhoto);
+        return;
+      }
       picked = [one];
     } else {
       // pickMultipleMedia is only multi-select API on image_picker
       // 1.x. On Android it opens system photo picker
       // (ACTION_PICK_IMAGES on API 33+, MediaStore on older).
       // `limit` is advisory on older OS versions; we still slice below.
-      picked = await picker.pickMultipleMedia(
-        limit: targetSlots.length,
-      );
-      if (picked.isEmpty || !mounted) return;
+      picked = await picker.pickMultipleMedia(limit: targetSlots.length);
+      if (picked.isEmpty || !mounted) {
+        _resumePickSlotShowcase(onboarding, awaitingFirstPhoto);
+        return;
+      }
     }
 
     // Mark all target slots (up to picked count) as in-progress so
@@ -483,20 +522,21 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
 
     // If picked count fills both primary slots, enable dual-primary
     // on the parent before processing so the grid layout updates.
-    final willFillSecondary =
-        assignSlots.contains(SlotKey.primarySecondary);
+    final willFillSecondary = assignSlots.contains(SlotKey.primarySecondary);
     if (willFillSecondary && !widget.isDoublePrimary) {
       widget.onDoublePrimaryEnabled?.call();
     }
 
     // Process each photo sequentially to avoid saturating the ML
     // detector and file system with concurrent operations.
+    final filled = <SlotKey>[];
     for (var i = 0; i < assignSlots.length; i++) {
       final key = assignSlots[i];
       final file = picked[i];
 
       try {
         await _processOneSlot(key: key, sourcePath: file.path);
+        filled.add(key);
       } catch (_) {
         // Individual slot failures are silent — the slot stays
         // empty and the user can retry by tapping it again.
@@ -504,6 +544,30 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
         if (mounted) setState(() => _pickingInProgress.remove(key));
       }
     }
+
+    if (!awaitingFirstPhoto || onboarding == null || !mounted) return;
+    if (filled.isEmpty ||
+        !onboarding.isActive ||
+        onboarding.currentStep != OnboardingStep.detailPickSlot) {
+      _resumePickSlotShowcase(onboarding, awaitingFirstPhoto);
+      return;
+    }
+    onboarding.rememberTutorialSlot(filled.first);
+    onboarding.advance(step: OnboardingStep.detailAutoAlign);
+    onboarding.startShowcaseForCurrentStep();
+  }
+
+  /// Shows the photo-pick tooltip again after a cancelled picker.
+  void _resumePickSlotShowcase(
+    OnboardingController? onboarding,
+    bool awaitingFirstPhoto,
+  ) {
+    if (!mounted || !awaitingFirstPhoto || onboarding == null) return;
+    if (!onboarding.isActive ||
+        onboarding.currentStep != OnboardingStep.detailPickSlot) {
+      return;
+    }
+    onboarding.startShowcaseForCurrentStep();
   }
 
   /// Copies [sourcePath] into app storage, runs ML detection,
@@ -618,10 +682,7 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
 
           // Displayed slot map: pending in edit mode, DB otherwise.
           final displayMap = widget.isEditMode && _pendingSlotMap != null
-              ? {
-                  for (final e in _pendingSlotMap!.entries)
-                    e.key.name: e.value,
-                }
+              ? {for (final e in _pendingSlotMap!.entries) e.key.name: e.value}
               : dbSlotMap;
 
           if (widget.isRepositionMode) {
@@ -631,8 +692,7 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
           return LayoutBuilder(
             builder: (context, constraints) {
               final cellSize = constraints.maxWidth / 3;
-              final cellHeight =
-                  widget.isCompact ? cellSize / 2 : cellSize;
+              final cellHeight = widget.isCompact ? cellSize / 2 : cellSize;
 
               Widget buildCell(SlotKey key) {
                 final slot = displayMap[key.name];
@@ -649,32 +709,39 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
                   }
                   if (widget.isEditMode) {
                     // In edit mode each half is its own drag target.
-                    return _buildDualPrimaryEditCell(
-                      cellSize,
-                      displayMap,
-                    );
+                    return _buildDualPrimaryEditCell(cellSize, displayMap);
                   }
-                  return _DualPrimaryCell(
-                    size: cellSize,
-                    height: cellHeight,
-                    primarySlot: displayMap[SlotKey.primary.name],
-                    secondarySlot:
-                        displayMap[SlotKey.primarySecondary.name],
-                    pickingPrimary: _pickingInProgress
-                        .contains(SlotKey.primary),
-                    pickingSecondary: _pickingInProgress
-                        .contains(SlotKey.primarySecondary),
-                    onTapPrimary: () => _handleCellTap(
+                  return _wrapPrimarySlotForOnboarding(
+                    _DualPrimaryCell(
+                      size: cellSize,
+                      height: cellHeight,
+                      primarySlot: displayMap[SlotKey.primary.name],
+                      secondarySlot: displayMap[SlotKey.primarySecondary.name],
+                      pickingPrimary: _pickingInProgress.contains(
+                        SlotKey.primary,
+                      ),
+                      pickingSecondary: _pickingInProgress.contains(
+                        SlotKey.primarySecondary,
+                      ),
+                      onTapPrimary: () => _handleCellTap(
+                        context,
+                        SlotKey.primary,
+                        dbSlotMap[SlotKey.primary.name],
+                        dbSlotMap,
+                      ),
+                      onTapSecondary: () => _handleCellTap(
+                        context,
+                        SlotKey.primarySecondary,
+                        dbSlotMap[SlotKey.primarySecondary.name],
+                        dbSlotMap,
+                      ),
+                    ),
+                    onPick: () => _handleCellTap(
                       context,
                       SlotKey.primary,
                       dbSlotMap[SlotKey.primary.name],
                       dbSlotMap,
-                    ),
-                    onTapSecondary: () => _handleCellTap(
-                      context,
-                      SlotKey.primarySecondary,
-                      dbSlotMap[SlotKey.primarySecondary.name],
-                      dbSlotMap,
+                      fromOnboardingTarget: true,
                     ),
                   );
                 }
@@ -697,7 +764,7 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
                   );
                 }
 
-                return _GazeCell(
+                final cell = _GazeCell(
                   key: ValueKey(key.name),
                   direction: kSlotKeyToDirection[key]!,
                   slotKey: key,
@@ -710,6 +777,17 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
                     key,
                     dbSlotMap[key.name],
                     dbSlotMap,
+                  ),
+                );
+                if (key != SlotKey.primary) return cell;
+                return _wrapPrimarySlotForOnboarding(
+                  cell,
+                  onPick: () => _handleCellTap(
+                    context,
+                    key,
+                    dbSlotMap[key.name],
+                    dbSlotMap,
+                    fromOnboardingTarget: true,
                   ),
                 );
               }
@@ -739,6 +817,27 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
             },
           );
         },
+      ),
+    );
+  }
+
+  /// Highlights the centre slot for pick, auto-align, and fine-tune.
+  Widget _wrapPrimarySlotForOnboarding(
+    Widget child, {
+    required VoidCallback onPick,
+  }) {
+    return OnboardingTarget(
+      step: OnboardingStep.detailFineTuneIntro,
+      targetBorderRadius: BorderRadius.circular(4),
+      child: OnboardingTarget(
+        step: OnboardingStep.detailAutoAlign,
+        targetBorderRadius: BorderRadius.circular(4),
+        child: OnboardingTarget(
+          step: OnboardingStep.detailPickSlot,
+          targetBorderRadius: BorderRadius.circular(4),
+          onTargetTap: onPick,
+          child: child,
+        ),
       ),
     );
   }
@@ -868,7 +967,8 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
       slot: slot,
       size: size,
       height: height,
-      patch: _pendingRepositionById?[slot.id] ?? _repositionOriginalById?[slot.id],
+      patch:
+          _pendingRepositionById?[slot.id] ?? _repositionOriginalById?[slot.id],
       onPatchChanged: (patch) {
         final map = _pendingRepositionById;
         final original = _repositionOriginalById?[slot.id];
@@ -941,7 +1041,7 @@ class _RepositionCell extends StatefulWidget {
   final SlotTransformPatch? patch;
   final ValueChanged<SlotTransformPatch> onPatchChanged;
   final void Function(SlotTransformPatch start, SlotTransformPatch end)
-      onPatchGestureEnd;
+  onPatchGestureEnd;
 
   @override
   State<_RepositionCell> createState() => _RepositionCellState();
@@ -1016,7 +1116,9 @@ class _RepositionCellState extends State<_RepositionCell> {
           final ely = slot.eyeLeftY! * sh;
           final erx = slot.eyeRightX! * sw;
           final ery = slot.eyeRightY! * sh;
-          final span = math.sqrt(math.pow(erx - elx, 2) + math.pow(ery - ely, 2));
+          final span = math.sqrt(
+            math.pow(erx - elx, 2) + math.pow(ery - ely, 2),
+          );
           baseScale = span > 0 ? fw / span : fw / sw;
         } else {
           baseScale = math.max(fw / sw, fh / sh);
@@ -1057,7 +1159,6 @@ class _RepositionCellState extends State<_RepositionCell> {
       ),
     );
   }
-
 }
 
 // ── Edit-mode draggable cell ─────────────────────────────────────
@@ -1107,7 +1208,10 @@ class _EditModeCell extends StatelessWidget {
                     direction: direction,
                     size: size,
                     height: height,
-                    label: slotKeyLocalizedLabel(AppLocalizations.of(context)!, slotKey),
+                    label: slotKeyLocalizedLabel(
+                      AppLocalizations.of(context)!,
+                      slotKey,
+                    ),
                   ),
           ),
 
@@ -1187,13 +1291,19 @@ class _GazeCell extends StatelessWidget {
                   slot: slot!,
                   size: size,
                   height: height,
-                  label: slotKeyLocalizedLabel(AppLocalizations.of(context)!, slotKey),
+                  label: slotKeyLocalizedLabel(
+                    AppLocalizations.of(context)!,
+                    slotKey,
+                  ),
                 )
               : _EmptyCell(
                   direction: direction,
                   size: size,
                   height: height,
-                  label: slotKeyLocalizedLabel(AppLocalizations.of(context)!, slotKey),
+                  label: slotKeyLocalizedLabel(
+                    AppLocalizations.of(context)!,
+                    slotKey,
+                  ),
                 ),
         ),
       ),
@@ -1437,7 +1547,10 @@ class _ThumbImageState extends State<_ThumbImage> {
     if (!widget.allowFullResFallback) {
       return SizedBox(width: widget.size, height: widget.height);
     }
-    return GazeSlotImage(slot: widget.slot, renderSize: Size(widget.size, widget.height));
+    return GazeSlotImage(
+      slot: widget.slot,
+      renderSize: Size(widget.size, widget.height),
+    );
   }
 }
 

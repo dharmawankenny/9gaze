@@ -20,6 +20,8 @@ class OnboardingTarget extends StatelessWidget {
     this.onTargetTap,
     this.targetBorderRadius,
     this.targetPadding,
+    this.enableAutoScroll = false,
+    this.scrollAlignment = 0.5,
   });
 
   final OnboardingStep step;
@@ -30,6 +32,12 @@ class OnboardingTarget extends StatelessWidget {
 
   final BorderRadius? targetBorderRadius;
   final EdgeInsets? targetPadding;
+
+  /// Scrolls the target into view before the tooltip is shown.
+  final bool enableAutoScroll;
+
+  /// Viewport alignment used when [enableAutoScroll] is true.
+  final double scrollAlignment;
 
   @override
   Widget build(BuildContext context) {
@@ -45,6 +53,7 @@ class OnboardingTarget extends StatelessWidget {
     final tapToAdvance = OnboardingStrings.isTapToAdvance(step);
     final tooltipPosition = OnboardingStrings.tooltipPositionFor(step);
     final key = onboarding.keyFor(step);
+    if (key == null) return child;
 
     void handleAdvance() {
       ShowcaseView.get().dismiss();
@@ -63,6 +72,8 @@ class OnboardingTarget extends StatelessWidget {
       toolTipSlideEndDistance: 0,
       toolTipMargin: step == OnboardingStep.homeEmptyList ? 20 : 16,
       targetTooltipGap: step == OnboardingStep.homeEmptyList ? 20 : 10,
+      enableAutoScroll: enableAutoScroll,
+      scrollAlignment: scrollAlignment,
       onBarrierClick: () {
         onboarding.requestSkipTour(context);
       },
@@ -198,11 +209,11 @@ class _OnboardingTooltipCardState extends State<_OnboardingTooltipCard> {
                     onPressed: _advanceEnabled ? widget.onAdvance : null,
                     style: TextButton.styleFrom(
                       backgroundColor: kAccentBlue,
-                      disabledBackgroundColor:
-                          kAccentBlue.withValues(alpha: 0.35),
+                      disabledBackgroundColor: kAccentBlue.withValues(
+                        alpha: 0.35,
+                      ),
                       foregroundColor: kWhite,
-                      disabledForegroundColor:
-                          kWhite.withValues(alpha: 0.5),
+                      disabledForegroundColor: kWhite.withValues(alpha: 0.5),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 20,
                         vertical: 10,

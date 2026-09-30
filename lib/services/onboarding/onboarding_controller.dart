@@ -1,9 +1,11 @@
 // State machine for the onboarding tour (eligibility, steps, completion).
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:showcaseview/showcaseview.dart';
 
 import 'package:kensa_9gaze/db/app_database.dart';
+import 'package:kensa_9gaze/models/slot_key.dart';
 import 'package:kensa_9gaze/repositories/gazes_repository.dart';
 import 'package:kensa_9gaze/services/onboarding/onboarding_launch_mode.dart';
 import 'package:kensa_9gaze/services/onboarding/onboarding_prefs.dart';
@@ -23,6 +25,12 @@ class OnboardingController extends ChangeNotifier {
   final GlobalKey createNameKey = GlobalKey();
   final GlobalKey createNotesKey = GlobalKey();
   final GlobalKey createSubmitKey = GlobalKey();
+  final GlobalKey detailSlotsGridKey = GlobalKey();
+  final GlobalKey detailPickSlotKey = GlobalKey();
+  final GlobalKey detailAutoAlignKey = GlobalKey();
+  final GlobalKey detailFineTuneIntroKey = GlobalKey();
+  final GlobalKey detailCompactDualKey = GlobalKey();
+  final GlobalKey detailInfoEditKey = GlobalKey();
 
   OnboardingLaunchMode _launchMode = OnboardingLaunchMode.automatic;
   OnboardingStep? _currentStep;
@@ -30,6 +38,7 @@ class OnboardingController extends ChangeNotifier {
   OnboardingStep? _showcaseStartedForStep;
   bool _skipConfirmShowing = false;
   bool _createNameAdvanceEnabled = false;
+  SlotKey? _tutorialSlotKey;
 
   /// Registers [ShowcaseView] once per process.
   static void ensureShowcaseRegistered() {
@@ -55,6 +64,9 @@ class OnboardingController extends ChangeNotifier {
   /// Whether Next is enabled on the create-name onboarding step.
   bool get createNameAdvanceEnabled => _createNameAdvanceEnabled;
 
+  /// Slot filled during the photo-pick step, reused by later highlights.
+  SlotKey? get tutorialSlotKey => _tutorialSlotKey;
+
   /// Updates Next availability while the user types a gaze name.
   void setCreateNameAdvanceEnabled(bool enabled) {
     if (_createNameAdvanceEnabled == enabled) return;
@@ -62,20 +74,32 @@ class OnboardingController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// GlobalKey for a home/sheet onboarding [step].
-  GlobalKey keyFor(OnboardingStep step) {
+  /// Remembers the first slot filled during the photo-pick step.
+  void rememberTutorialSlot(SlotKey key) {
+    _tutorialSlotKey = key;
+  }
+
+  /// GlobalKey for a showcase [step], or null when that step has no target yet.
+  GlobalKey? keyFor(OnboardingStep step) {
     return switch (step) {
       OnboardingStep.homeEmptyList => homeEmptyListKey,
       OnboardingStep.homeCreateButton => homeCreateButtonKey,
       OnboardingStep.createName => createNameKey,
       OnboardingStep.createNotes => createNotesKey,
       OnboardingStep.createSubmit => createSubmitKey,
-      _ => GlobalKey(),
+      OnboardingStep.detailSlotsGrid => detailSlotsGridKey,
+      OnboardingStep.detailPickSlot => detailPickSlotKey,
+      OnboardingStep.detailAutoAlign => detailAutoAlignKey,
+      OnboardingStep.detailFineTuneIntro => detailFineTuneIntroKey,
+      OnboardingStep.detailCompactDual => detailCompactDualKey,
+      OnboardingStep.detailInfoEdit => detailInfoEditKey,
+      _ => null,
     };
   }
 
   /// Checks prefs + gaze count; returns true if welcome should show.
   Future<bool> startIfEligible() async {
+    if (_isActive) return false;
     if (!await _shouldShowAutomaticOnboarding()) {
       return false;
     }
@@ -87,15 +111,17 @@ class OnboardingController extends ChangeNotifier {
   }
 
   /// Whether the automatic tour should run on this launch.
+  ///
+  /// Debug builds ignore the completed flag when no gazes are saved,
+  /// so the tour can be replayed without clearing app storage.
   Future<bool> _shouldShowAutomaticOnboarding() async {
-    if (await OnboardingPrefs.isCompleted()) {
-      return false;
-    }
     final count = await GazesRepository(_db).count();
     if (count > 0) {
       await OnboardingPrefs.markCompleted();
       return false;
     }
+    if (kDebugMode) return true;
+    if (await OnboardingPrefs.isCompleted()) return false;
     return true;
   }
 
@@ -158,24 +184,36 @@ class OnboardingController extends ChangeNotifier {
     _currentStep = null;
     _showcaseStartedForStep = null;
     _createNameAdvanceEnabled = false;
+    _tutorialSlotKey = null;
     notifyListeners();
   }
 
   /// Starts showcase for [currentStep] when a [GlobalKey] is registered.
   void startShowcaseForCurrentStep() {
-    if (!_isActive || _currentStep == null) return;
-    if (_showcaseStartedForStep == _currentStep) return;
+    _scheduleShowcaseStart(attempt: 0);
+  }
 
-    final key = keyFor(_currentStep!);
-    _showcaseStartedForStep = _currentStep;
+  /// Retries for a few frames when the target is not mounted yet.
+  void _scheduleShowcaseStart({required int attempt}) {
+    if (!_isActive || _currentStep == null) return;
+
+    final step = _currentStep!;
+    if (_showcaseStartedForStep == step) return;
+    final key = keyFor(step);
+    if (key == null) return;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_isActive || _currentStep == null) return;
+      if (!_isActive || _currentStep != step) return;
+      if (_showcaseStartedForStep == step) return;
       try {
         ShowcaseView.get().startShowCase([key]);
+        _showcaseStartedForStep = step;
       } catch (e) {
         debugPrint('Onboarding showcase start failed: $e');
         _showcaseStartedForStep = null;
+        if (attempt < 8) {
+          _scheduleShowcaseStart(attempt: attempt + 1);
+        }
       }
     });
   }

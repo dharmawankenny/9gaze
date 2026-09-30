@@ -42,6 +42,26 @@ class OnboardingStrings {
         title: l10n.onboardingDetailSlotsTitle,
         body: l10n.onboardingDetailSlotsBody,
       ),
+      OnboardingStep.detailPickSlot => (
+        title: l10n.onboardingDetailPickTitle,
+        body: l10n.onboardingDetailPickBody,
+      ),
+      OnboardingStep.detailAutoAlign => (
+        title: l10n.onboardingDetailAutoAlignTitle,
+        body: l10n.onboardingDetailAutoAlignBody,
+      ),
+      OnboardingStep.detailFineTuneIntro => (
+        title: l10n.onboardingDetailFineTuneTitle,
+        body: l10n.onboardingDetailFineTuneBody,
+      ),
+      OnboardingStep.detailCompactDual => (
+        title: l10n.onboardingDetailLayoutTitle,
+        body: l10n.onboardingDetailLayoutBody,
+      ),
+      OnboardingStep.detailInfoEdit => (
+        title: l10n.onboardingDetailInfoTitle,
+        body: l10n.onboardingDetailInfoBody,
+      ),
       _ => (title: l10n.appTitle, body: ''),
     };
   }
@@ -52,7 +72,9 @@ class OnboardingStrings {
   /// Steps where the user must tap the highlighted widget.
   static bool isTapToAdvance(OnboardingStep step) {
     return switch (step) {
-      OnboardingStep.homeCreateButton || OnboardingStep.createSubmit => true,
+      OnboardingStep.homeCreateButton ||
+      OnboardingStep.createSubmit ||
+      OnboardingStep.detailPickSlot => true,
       _ => false,
     };
   }
@@ -64,8 +86,13 @@ class OnboardingStrings {
       OnboardingStep.homeCreateButton ||
       OnboardingStep.createName ||
       OnboardingStep.createNotes ||
-      OnboardingStep.createSubmit =>
-        TooltipPosition.top,
+      OnboardingStep.createSubmit => TooltipPosition.top,
+      OnboardingStep.detailSlotsGrid ||
+      OnboardingStep.detailPickSlot ||
+      OnboardingStep.detailAutoAlign ||
+      OnboardingStep.detailFineTuneIntro => TooltipPosition.bottom,
+      OnboardingStep.detailCompactDual ||
+      OnboardingStep.detailInfoEdit => TooltipPosition.top,
       _ => null,
     };
   }

@@ -25,5 +25,18 @@ enum OnboardingStep {
   detailRearrange,
   detailText,
   detailExport,
-  complete,
+  complete;
+
+  /// True for the gaze-detail intro, before the slot editor.
+  bool get isGazeDetailIntro {
+    return switch (this) {
+      detailSlotsGrid ||
+      detailPickSlot ||
+      detailAutoAlign ||
+      detailFineTuneIntro ||
+      detailCompactDual ||
+      detailInfoEdit => true,
+      _ => false,
+    };
+  }
 }

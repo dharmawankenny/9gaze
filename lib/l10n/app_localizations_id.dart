@@ -272,5 +272,40 @@ class AppLocalizationsId extends AppLocalizations {
 
   @override
   String get onboardingDetailSlotsBody =>
-      'Setiap slot sesuai arah tatapan. Ketuk slot untuk mengimpor satu foto dari galeri.';
+      'Setiap slot sesuai arah tatapan. Ketuk slot untuk mengimpor satu foto dari galeri. Pilih beberapa foto sekaligus dan 9Gaze mengisi slot kosong berurutan.';
+
+  @override
+  String get onboardingDetailPickTitle => 'Impor dari galeri';
+
+  @override
+  String get onboardingDetailPickBody =>
+      'Ketuk slot (tengah adalah pilihan awal yang baik) dan pilih satu atau beberapa foto. Tidak perlu kamera di aplikasi.';
+
+  @override
+  String get onboardingDetailAutoAlignTitle => 'Penjajaran mata otomatis';
+
+  @override
+  String get onboardingDetailAutoAlignBody =>
+      '9Gaze mendeteksi mata di setiap foto, menengahkan secara vertikal, dan menyesuaikan gambar ke batas horizontal slot agar setiap sel terlihat konsisten.';
+
+  @override
+  String get onboardingDetailFineTuneTitle => 'Penyesuaian manual';
+
+  @override
+  String get onboardingDetailFineTuneBody =>
+      'Penjajaran otomatis tidak selalu pas di setiap foto. Buka slot untuk kontrol penuh, atau gunakan Ubah di layar ini untuk menggeser posisi di grid.';
+
+  @override
+  String get onboardingDetailLayoutTitle => 'Opsi tata letak';
+
+  @override
+  String get onboardingDetailLayoutBody =>
+      'Mode pendek memakai sel slot yang lebih rendah. Dua tatapan tengah membelah slot tengah menjadi atas dan bawah. Hanya satu opsi tata letak yang aktif.';
+
+  @override
+  String get onboardingDetailInfoTitle => 'Detail tatapan';
+
+  @override
+  String get onboardingDetailInfoBody =>
+      'Nama dan catatan grid ini ada di sini. Ketuk Perbarui untuk mengubahnya kapan saja.';
 }
