@@ -92,5 +92,15 @@
   "onboardingDetailLayoutTitle": "Opsi tata letak",
   "onboardingDetailLayoutBody": "Mode pendek memakai sel slot yang lebih rendah. Dua tatapan tengah membelah slot tengah menjadi atas dan bawah. Hanya satu opsi tata letak yang aktif.",
   "onboardingDetailInfoTitle": "Detail tatapan",
-  "onboardingDetailInfoBody": "Nama dan catatan grid ini ada di sini. Ketuk Perbarui untuk mengubahnya kapan saja."
+  "onboardingDetailInfoBody": "Nama dan catatan grid ini ada di sini. Ketuk Perbarui untuk mengubahnya kapan saja.",
+  "onboardingDetailTapSlotTitle": "Sesuaikan slot ini",
+  "onboardingDetailTapSlotBody": "Ketuk slot yang baru Anda isi. Di layar berikutnya Anda bisa mengatur posisi, zoom, dan rotasi.",
+  "onboardingSlotGesturesTitle": "Atur bingkai",
+  "onboardingSlotGesturesBody": "Cubit untuk zoom, geser untuk pindah, putar untuk rotasi. Coba penyesuaian kecil jika penjajaran otomatis perlu dibetulkan.",
+  "onboardingSlotUndoTitle": "Undo dan redo",
+  "onboardingSlotUndoBody": "Ketuk Undo untuk mundur, lalu Redo jika ingin mengembalikan perubahan.",
+  "onboardingSlotToolsTitle": "Alat slot",
+  "onboardingSlotToolsBody": "Tengahkan menjalankan penjajaran mata otomatis lagi. Reset menghapus edit manual sesi ini. Ganti mengimpor foto lain untuk slot ini.",
+  "onboardingSlotSaveTitle": "Simpan slot ini",
+  "onboardingSlotSaveBody": "Ketuk Simpan untuk kembali ke grid tatapan Anda."
 }

@@ -308,4 +308,39 @@ class AppLocalizationsId extends AppLocalizations {
   @override
   String get onboardingDetailInfoBody =>
       'Nama dan catatan grid ini ada di sini. Ketuk Perbarui untuk mengubahnya kapan saja.';
+
+  @override
+  String get onboardingDetailTapSlotTitle => 'Sesuaikan slot ini';
+
+  @override
+  String get onboardingDetailTapSlotBody =>
+      'Ketuk slot yang baru Anda isi. Di layar berikutnya Anda bisa mengatur posisi, zoom, dan rotasi.';
+
+  @override
+  String get onboardingSlotGesturesTitle => 'Atur bingkai';
+
+  @override
+  String get onboardingSlotGesturesBody =>
+      'Cubit untuk zoom, geser untuk pindah, putar untuk rotasi. Coba penyesuaian kecil jika penjajaran otomatis perlu dibetulkan.';
+
+  @override
+  String get onboardingSlotUndoTitle => 'Undo dan redo';
+
+  @override
+  String get onboardingSlotUndoBody =>
+      'Ketuk Undo untuk mundur, lalu Redo jika ingin mengembalikan perubahan.';
+
+  @override
+  String get onboardingSlotToolsTitle => 'Alat slot';
+
+  @override
+  String get onboardingSlotToolsBody =>
+      'Tengahkan menjalankan penjajaran mata otomatis lagi. Reset menghapus edit manual sesi ini. Ganti mengimpor foto lain untuk slot ini.';
+
+  @override
+  String get onboardingSlotSaveTitle => 'Simpan slot ini';
+
+  @override
+  String get onboardingSlotSaveBody =>
+      'Ketuk Simpan untuk kembali ke grid tatapan Anda.';
 }

@@ -39,4 +39,15 @@ enum OnboardingStep {
       _ => false,
     };
   }
+
+  /// True while the tour is on the slot editor screen.
+  bool get isSlotEditorStep {
+    return switch (this) {
+      slotEditorGestures ||
+      slotEditorUndoRedo ||
+      slotEditorTools ||
+      slotEditorSave => true,
+      _ => false,
+    };
+  }
 }

@@ -32,9 +32,12 @@ import 'package:kensa_9gaze/repositories/gaze_slots_repository.dart';
 import 'package:kensa_9gaze/services/face_aligner.dart';
 import 'package:kensa_9gaze/services/gaze_exporter.dart';
 import 'package:kensa_9gaze/services/image_storage.dart';
+import 'package:kensa_9gaze/services/onboarding/onboarding_step.dart';
 import 'package:kensa_9gaze/services/thumbnail_renderer.dart';
 import 'package:kensa_9gaze/utils/undo_redo_stack.dart';
 import 'package:kensa_9gaze/widgets/gaze_slot_image.dart';
+import 'package:kensa_9gaze/widgets/onboarding/onboarding_scope.dart';
+import 'package:kensa_9gaze/widgets/onboarding/onboarding_target.dart';
 
 /// Full-screen modal for adjusting pan/zoom/rotation of a slot photo.
 ///
@@ -105,6 +108,12 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
   /// Undo/redo history for transform edits in this editor session.
   final UndoRedoStack<_TransformSnapshot> _history = UndoRedoStack();
 
+  /// Tour gates for the undo-then-redo step.
+  bool _onboardingDidUndo = false;
+  bool _onboardingDidRedo = false;
+  Animation<double>? _routeAnimation;
+  AnimationStatusListener? _routeStatusListener;
+
   _TransformSnapshot _gestureStartSnapshot = const _TransformSnapshot(
     translateX: 0.5,
     translateY: 0.5,
@@ -125,13 +134,64 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
     _savedTranslateY = widget.slot.translateY;
     _savedScale = widget.slot.scale;
     _savedRotation = widget.slot.rotation;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _scheduleSlotOnboardingShowcase();
+    });
+  }
+
+  @override
+  void dispose() {
+    if (_routeStatusListener != null) {
+      _routeAnimation?.removeStatusListener(_routeStatusListener!);
+    }
+    super.dispose();
+  }
+
+  /// Starts the editor tour after the fullscreen route has opened.
+  void _scheduleSlotOnboardingShowcase() {
+    final animation = ModalRoute.of(context)?.animation;
+    if (animation == null || animation.status == AnimationStatus.completed) {
+      _startSlotOnboardingShowcase();
+      return;
+    }
+    _routeAnimation = animation;
+    _routeStatusListener = (status) {
+      if (status != AnimationStatus.completed || !mounted) return;
+      animation.removeStatusListener(_routeStatusListener!);
+      _routeStatusListener = null;
+      _startSlotOnboardingShowcase();
+    };
+    animation.addStatusListener(_routeStatusListener!);
+  }
+
+  /// Shows the tooltip for the current slot-editor step.
+  void _startSlotOnboardingShowcase() {
+    final onboarding = OnboardingScope.maybeOf(context);
+    final step = onboarding?.currentStep;
+    if (onboarding == null ||
+        !onboarding.isActive ||
+        step == null ||
+        !step.isSlotEditorStep) {
+      return;
+    }
+    onboarding.dismissShowcase();
+    onboarding.startShowcaseForCurrentStep();
+  }
+
+  /// Moves the tour to [step] and shows that tooltip.
+  void _advanceOnboarding(OnboardingStep step) {
+    final onboarding = OnboardingScope.maybeOf(context);
+    if (onboarding == null || !onboarding.isActive) return;
+    onboarding.dismissShowcase();
+    onboarding.advance(step: step);
+    onboarding.startShowcaseForCurrentStep();
   }
 
   // ── Actions ──────────────────────────────────────────────────
 
   /// Whether session has undo/redo history (edits since open / last reset).
-  bool get _hasSessionUndoHistory =>
-      _history.canUndo || _history.canRedo;
+  bool get _hasSessionUndoHistory => _history.canUndo || _history.canRedo;
 
   /// Restores transform to last saved DB values and clears undo/redo.
   void _handleReset() {
@@ -229,7 +289,6 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
         (_rotation - _savedRotation).abs() > eps;
   }
 
-
   bool get _canUndo => _history.canUndo;
   bool get _canRedo => _history.canRedo;
 
@@ -269,6 +328,7 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
     final prior = _history.undo(_snapshot());
     if (prior == null) return;
     _applySnapshot(prior);
+    _noteOnboardingUndoRedo(didUndo: true);
   }
 
   void _redo() {
@@ -276,6 +336,21 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
     final next = _history.redo(_snapshot());
     if (next == null) return;
     _applySnapshot(next);
+    _noteOnboardingUndoRedo(didRedo: true);
+  }
+
+  /// Advances after the tour has seen both undo and redo.
+  void _noteOnboardingUndoRedo({bool didUndo = false, bool didRedo = false}) {
+    final onboarding = OnboardingScope.maybeOf(context);
+    if (onboarding == null ||
+        !onboarding.isActive ||
+        onboarding.currentStep != OnboardingStep.slotEditorUndoRedo) {
+      return;
+    }
+    if (didUndo) _onboardingDidUndo = true;
+    if (didRedo) _onboardingDidRedo = true;
+    if (!_onboardingDidUndo || !_onboardingDidRedo) return;
+    _advanceOnboarding(OnboardingStep.slotEditorTools);
   }
 
   void _applyActionWithHistory(_TransformSnapshot next) {
@@ -479,7 +554,16 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
   }
 
   void _onScaleEnd(ScaleEndDetails d) {
-    _pushIfChanged(_gestureStartSnapshot, _snapshot());
+    final before = _gestureStartSnapshot;
+    final after = _snapshot();
+    _pushIfChanged(before, after);
+    if (!_sameSnapshot(before, after)) {
+      final onboarding = OnboardingScope.maybeOf(context);
+      if (onboarding?.isActive == true &&
+          onboarding!.currentStep == OnboardingStep.slotEditorGestures) {
+        _advanceOnboarding(OnboardingStep.slotEditorUndoRedo);
+      }
+    }
     if (mounted) setState(() {});
   }
 
@@ -510,15 +594,25 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 8),
-            child: TextButton(
-              onPressed: (_saving || !_hasUnsavedTransform) ? null : _handleSave,
-              child: Text(
-                _saving ? l10n.saving : l10n.save,
-                style: GoogleFonts.bricolageGrotesque(
-                  color: (_saving || !_hasUnsavedTransform)
-                      ? kWhite.withValues(alpha: 0.35)
-                      : kAccentBlue,
-                  fontWeight: FontWeight.w700,
+            child: OnboardingTarget(
+              step: OnboardingStep.slotEditorSave,
+              targetBorderRadius: BorderRadius.circular(20),
+              onTargetTap: _handleOnboardingSave,
+              child: TextButton(
+                onPressed: (_saving || !_hasUnsavedTransform)
+                    ? null
+                    : () {
+                        if (_isOnboardingSaveStep()) return;
+                        _handleSave();
+                      },
+                child: Text(
+                  _saving ? l10n.saving : l10n.save,
+                  style: GoogleFonts.bricolageGrotesque(
+                    color: (_saving || !_hasUnsavedTransform)
+                        ? kWhite.withValues(alpha: 0.35)
+                        : kAccentBlue,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ),
@@ -529,181 +623,209 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
         top: false,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                l10n.pinchZoomDragTwist,
-                textAlign: TextAlign.center,
-                style: GoogleFonts.bricolageGrotesque(
-                  color: kWhite.withValues(alpha: 0.35),
-                  fontSize: 12,
+          child: OnboardingTarget(
+            step: OnboardingStep.slotEditorTools,
+            targetBorderRadius: BorderRadius.circular(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  l10n.pinchZoomDragTwist,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.bricolageGrotesque(
+                    color: kWhite.withValues(alpha: 0.35),
+                    fontSize: 12,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  IconButton(
-                    tooltip: l10n.undo,
-                    color: kWhite.withValues(alpha: 0.9),
-                    onPressed: (_saving || !_canUndo) ? null : _undo,
-                    icon: const Icon(Icons.undo_rounded),
-                  ),
-                  IconButton(
-                    tooltip: l10n.redo,
-                    color: kWhite.withValues(alpha: 0.9),
-                    onPressed: (_saving || !_canRedo) ? null : _redo,
-                    icon: const Icon(Icons.redo_rounded),
-                  ),
-                  IconButton(
-                    tooltip: l10n.reset,
-                    color: kWhite.withValues(alpha: 0.9),
-                    onPressed:
-                        (_saving || !_hasSessionUndoHistory) ? null : _handleReset,
-                    icon: const Icon(Icons.restart_alt_rounded),
-                  ),
-                  const Spacer(),
-                  TextButton(
-                    onPressed: _saving ? null : _handleRecenter,
-                    style: TextButton.styleFrom(
-                      foregroundColor: kWhite.withValues(alpha: 0.9),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
+                const SizedBox(height: 12),
+                OnboardingTarget(
+                  step: OnboardingStep.slotEditorUndoRedo,
+                  targetBorderRadius: BorderRadius.circular(12),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        tooltip: l10n.undo,
+                        color: kWhite.withValues(alpha: 0.9),
+                        onPressed: (_saving || !_canUndo) ? null : _undo,
+                        icon: const Icon(Icons.undo_rounded),
                       ),
-                    ),
-                    child: Text(
-                      l10n.recenter,
-                      style: GoogleFonts.bricolageGrotesque(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
+                      IconButton(
+                        tooltip: l10n.redo,
+                        color: kWhite.withValues(alpha: 0.9),
+                        onPressed: (_saving || !_canRedo) ? null : _redo,
+                        icon: const Icon(Icons.redo_rounded),
                       ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: _saving ? null : _handleReplaceImage,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: kWhite.withValues(alpha: 0.8),
-                        side: BorderSide(
-                          color: kWhite.withValues(alpha: 0.15),
+                      IconButton(
+                        tooltip: l10n.reset,
+                        color: kWhite.withValues(alpha: 0.9),
+                        onPressed: (_saving || !_hasSessionUndoHistory)
+                            ? null
+                            : _handleReset,
+                        icon: const Icon(Icons.restart_alt_rounded),
+                      ),
+                      const Spacer(),
+                      TextButton(
+                        onPressed: _saving ? null : _handleRecenter,
+                        style: TextButton.styleFrom(
+                          foregroundColor: kWhite.withValues(alpha: 0.9),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
                         ),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      child: Text(l10n.replace),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: (_saving ||
-                              _exportingSlot ||
-                              _slotExportSuccessFlash)
-                          ? null
-                          : _handleExportSlotToGallery,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: kWhite.withValues(alpha: 0.8),
-                        side: BorderSide(
-                          color: kWhite.withValues(alpha: 0.15),
+                        child: Text(
+                          l10n.recenter,
+                          style: GoogleFonts.bricolageGrotesque(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
                         ),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
-                      child: _exportingSlot
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: kWhite,
-                              ),
-                            )
-                          : _slotExportSuccessFlash
-                              ? Text(
-                                  l10n.exportDone,
-                                  style: GoogleFonts.bricolageGrotesque(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 14,
-                                  ),
-                                )
-                              : Text(
-                                  l10n.exportVerb,
-                                  style: GoogleFonts.bricolageGrotesque(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 14,
-                                  ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: _saving ? null : _handleReplaceImage,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: kWhite.withValues(alpha: 0.8),
+                          side: BorderSide(
+                            color: kWhite.withValues(alpha: 0.15),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        child: Text(l10n.replace),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed:
+                            (_saving ||
+                                _exportingSlot ||
+                                _slotExportSuccessFlash)
+                            ? null
+                            : _handleExportSlotToGallery,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: kWhite.withValues(alpha: 0.8),
+                          side: BorderSide(
+                            color: kWhite.withValues(alpha: 0.15),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        child: _exportingSlot
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: kWhite,
                                 ),
+                              )
+                            : _slotExportSuccessFlash
+                            ? Text(
+                                l10n.exportDone,
+                                style: GoogleFonts.bricolageGrotesque(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                ),
+                              )
+                            : Text(
+                                l10n.exportVerb,
+                                style: GoogleFonts.bricolageGrotesque(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                ),
+                              ),
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
-      body: Column(
-        children: [
-          // ── Slot frame ───────────────────────────────────
-          Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final maxW = constraints.maxWidth;
-                final maxH = constraints.maxHeight;
-                // Largest frame with width/height = aspectRatio that fits in
-                // maxW×maxH (wide tablets / fold inner / landscape).
-                final fh = math.min(maxH, maxW / aspectRatio);
-                final fw = aspectRatio * fh;
-                _frameSize = Size(fw, fh);
-                final frameSize = Size(fw, fh);
+      body: OnboardingTarget(
+        step: OnboardingStep.slotEditorGestures,
+        targetBorderRadius: BorderRadius.circular(8),
+        child: Column(
+          children: [
+            // ── Slot frame ───────────────────────────────────
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final maxW = constraints.maxWidth;
+                  final maxH = constraints.maxHeight;
+                  // Largest frame with width/height = aspectRatio that fits in
+                  // maxW×maxH (wide tablets / fold inner / landscape).
+                  final fh = math.min(maxH, maxW / aspectRatio);
+                  final fw = aspectRatio * fh;
+                  _frameSize = Size(fw, fh);
+                  final frameSize = Size(fw, fh);
 
-                return Center(
-                  child: SizedBox(
-                    width: fw,
-                    height: fh,
-                    child: Stack(
-                      children: [
-                        // Image with live transform.
-                        GestureDetector(
-                          onScaleStart: _onScaleStart,
-                          onScaleUpdate: _onScaleUpdate,
-                          onScaleEnd: _onScaleEnd,
-                          child: GazeSlotImage(
-                            slot: _currentSlot,
-                            renderSize: frameSize,
+                  return Center(
+                    child: SizedBox(
+                      width: fw,
+                      height: fh,
+                      child: Stack(
+                        children: [
+                          // Image with live transform.
+                          GestureDetector(
+                            onScaleStart: _onScaleStart,
+                            onScaleUpdate: _onScaleUpdate,
+                            onScaleEnd: _onScaleEnd,
+                            child: GazeSlotImage(
+                              slot: _currentSlot,
+                              renderSize: frameSize,
 
-                            overrideTranslateX: _translateX,
-                            overrideTranslateY: _translateY,
-                            overrideScale: _scale,
-                            overrideRotation: _rotation,
+                              overrideTranslateX: _translateX,
+                              overrideTranslateY: _translateY,
+                              overrideScale: _scale,
+                              overrideRotation: _rotation,
+                            ),
                           ),
-                        ),
 
-                        // Guide overlay (non-interactive).
-                        IgnorePointer(
-                          child: CustomPaint(
-                            size: frameSize,
-                            painter: _GuideOverlayPainter(),
+                          // Guide overlay (non-interactive).
+                          IgnorePointer(
+                            child: CustomPaint(
+                              size: frameSize,
+                              painter: _GuideOverlayPainter(),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
-          ),
-
-        ],
+          ],
+        ),
       ),
     );
   }
+
+  /// True while the tour is waiting for the Save tap.
+  bool _isOnboardingSaveStep() {
+    final onboarding = OnboardingScope.maybeOf(context);
+    return onboarding?.isActive == true &&
+        onboarding!.currentStep == OnboardingStep.slotEditorSave;
+  }
+
+  /// Saves the slot and hands the tour back to the detail screen.
+  void _handleOnboardingSave() {
+    final onboarding = OnboardingScope.maybeOf(context);
+    if (onboarding?.isActive == true &&
+        onboarding!.currentStep == OnboardingStep.slotEditorSave) {
+      onboarding.advance(step: OnboardingStep.detailBulkEditButton);
+    }
+    _handleSave();
+  }
 }
-
-
 
 class _TransformSnapshot {
   const _TransformSnapshot({

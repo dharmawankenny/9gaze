@@ -62,6 +62,26 @@ class OnboardingStrings {
         title: l10n.onboardingDetailInfoTitle,
         body: l10n.onboardingDetailInfoBody,
       ),
+      OnboardingStep.detailTapFilledSlot => (
+        title: l10n.onboardingDetailTapSlotTitle,
+        body: l10n.onboardingDetailTapSlotBody,
+      ),
+      OnboardingStep.slotEditorGestures => (
+        title: l10n.onboardingSlotGesturesTitle,
+        body: l10n.onboardingSlotGesturesBody,
+      ),
+      OnboardingStep.slotEditorUndoRedo => (
+        title: l10n.onboardingSlotUndoTitle,
+        body: l10n.onboardingSlotUndoBody,
+      ),
+      OnboardingStep.slotEditorTools => (
+        title: l10n.onboardingSlotToolsTitle,
+        body: l10n.onboardingSlotToolsBody,
+      ),
+      OnboardingStep.slotEditorSave => (
+        title: l10n.onboardingSlotSaveTitle,
+        body: l10n.onboardingSlotSaveBody,
+      ),
       _ => (title: l10n.appTitle, body: ''),
     };
   }
@@ -74,7 +94,18 @@ class OnboardingStrings {
     return switch (step) {
       OnboardingStep.homeCreateButton ||
       OnboardingStep.createSubmit ||
-      OnboardingStep.detailPickSlot => true,
+      OnboardingStep.detailPickSlot ||
+      OnboardingStep.detailTapFilledSlot ||
+      OnboardingStep.slotEditorSave => true,
+      _ => false,
+    };
+  }
+
+  /// Steps that advance from a real action, with no Next button.
+  static bool waitsForAction(OnboardingStep step) {
+    return switch (step) {
+      OnboardingStep.slotEditorGestures ||
+      OnboardingStep.slotEditorUndoRedo => true,
       _ => false,
     };
   }
@@ -92,7 +123,12 @@ class OnboardingStrings {
       OnboardingStep.detailAutoAlign ||
       OnboardingStep.detailFineTuneIntro => TooltipPosition.bottom,
       OnboardingStep.detailCompactDual ||
-      OnboardingStep.detailInfoEdit => TooltipPosition.top,
+      OnboardingStep.detailInfoEdit ||
+      OnboardingStep.slotEditorGestures ||
+      OnboardingStep.slotEditorUndoRedo ||
+      OnboardingStep.slotEditorTools => TooltipPosition.top,
+      OnboardingStep.detailTapFilledSlot ||
+      OnboardingStep.slotEditorSave => TooltipPosition.bottom,
       _ => null,
     };
   }

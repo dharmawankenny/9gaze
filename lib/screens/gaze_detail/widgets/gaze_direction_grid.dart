@@ -437,7 +437,8 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
     required bool fromOnboardingTarget,
   }) {
     if (step == null) return false;
-    if (step == OnboardingStep.detailPickSlot) {
+    if (step == OnboardingStep.detailPickSlot ||
+        step == OnboardingStep.detailTapFilledSlot) {
       return !fromOnboardingTarget;
     }
     return step.isGazeDetailIntro;
@@ -660,6 +661,17 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
         ),
       ),
     );
+    if (!mounted) return;
+    final onboarding = OnboardingScope.maybeOf(context);
+    final step = onboarding?.currentStep;
+    if (onboarding == null ||
+        !onboarding.isActive ||
+        step == null ||
+        !step.isSlotEditorStep) {
+      return;
+    }
+    onboarding.advance(step: OnboardingStep.detailTapFilledSlot);
+    onboarding.startShowcaseForCurrentStep();
   }
 
   // ── Build ────────────────────────────────────────────────────
@@ -743,6 +755,12 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
                       dbSlotMap,
                       fromOnboardingTarget: true,
                     ),
+                    onOpenEditor: () => _handleOnboardingOpenEditor(
+                      context,
+                      SlotKey.primary,
+                      dbSlotMap[SlotKey.primary.name],
+                      dbSlotMap,
+                    ),
                   );
                 }
 
@@ -779,7 +797,7 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
                     dbSlotMap,
                   ),
                 );
-                if (key != SlotKey.primary) return cell;
+                if (!_shouldHighlightSlotForOnboarding(key)) return cell;
                 return _wrapPrimarySlotForOnboarding(
                   cell,
                   onPick: () => _handleCellTap(
@@ -788,6 +806,12 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
                     dbSlotMap[key.name],
                     dbSlotMap,
                     fromOnboardingTarget: true,
+                  ),
+                  onOpenEditor: () => _handleOnboardingOpenEditor(
+                    context,
+                    key,
+                    dbSlotMap[key.name],
+                    dbSlotMap,
                   ),
                 );
               }
@@ -821,22 +845,49 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
     );
   }
 
-  /// Highlights the centre slot for pick, auto-align, and fine-tune.
+  /// True for the centre slot and the slot filled during the tour.
+  bool _shouldHighlightSlotForOnboarding(SlotKey key) {
+    if (key == SlotKey.primary) return true;
+    return OnboardingScope.maybeOf(context)?.tutorialSlotKey == key;
+  }
+
+  /// Opens the editor for the tour's filled slot and advances the step.
+  void _handleOnboardingOpenEditor(
+    BuildContext context,
+    SlotKey key,
+    GazeSlot? existing,
+    Map<String, GazeSlot> slotMap,
+  ) {
+    final onboarding = OnboardingScope.maybeOf(context);
+    if (onboarding?.isActive == true &&
+        onboarding!.currentStep == OnboardingStep.detailTapFilledSlot) {
+      onboarding.advance(step: OnboardingStep.slotEditorGestures);
+    }
+    _handleCellTap(context, key, existing, slotMap, fromOnboardingTarget: true);
+  }
+
+  /// Highlights the tour slot for pick, alignment, and opening the editor.
   Widget _wrapPrimarySlotForOnboarding(
     Widget child, {
     required VoidCallback onPick,
+    required VoidCallback onOpenEditor,
   }) {
     return OnboardingTarget(
-      step: OnboardingStep.detailFineTuneIntro,
+      step: OnboardingStep.detailTapFilledSlot,
       targetBorderRadius: BorderRadius.circular(4),
+      onTargetTap: onOpenEditor,
       child: OnboardingTarget(
-        step: OnboardingStep.detailAutoAlign,
+        step: OnboardingStep.detailFineTuneIntro,
         targetBorderRadius: BorderRadius.circular(4),
         child: OnboardingTarget(
-          step: OnboardingStep.detailPickSlot,
+          step: OnboardingStep.detailAutoAlign,
           targetBorderRadius: BorderRadius.circular(4),
-          onTargetTap: onPick,
-          child: child,
+          child: OnboardingTarget(
+            step: OnboardingStep.detailPickSlot,
+            targetBorderRadius: BorderRadius.circular(4),
+            onTargetTap: onPick,
+            child: child,
+          ),
         ),
       ),
     );

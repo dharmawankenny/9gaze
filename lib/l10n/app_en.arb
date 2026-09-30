@@ -107,5 +107,15 @@
   "onboardingDetailLayoutTitle": "Layout options",
   "onboardingDetailLayoutBody": "Compact Mode uses shorter slot cells. Dual Primary splits the centre slot into top and bottom. Only one layout option can be active at a time.",
   "onboardingDetailInfoTitle": "Gaze details",
-  "onboardingDetailInfoBody": "The name and notes for this grid are here. Tap Update to change them anytime."
+  "onboardingDetailInfoBody": "The name and notes for this grid are here. Tap Update to change them anytime.",
+  "onboardingDetailTapSlotTitle": "Fine-tune this slot",
+  "onboardingDetailTapSlotBody": "Tap the slot you just filled. You can adjust position, zoom, and rotation on the next screen.",
+  "onboardingSlotGesturesTitle": "Adjust the framing",
+  "onboardingSlotGesturesBody": "Pinch to zoom, drag to pan, twist to rotate. Try a small adjustment if auto-alignment needs a nudge.",
+  "onboardingSlotUndoTitle": "Undo and redo",
+  "onboardingSlotUndoBody": "Tap Undo to step back, then Redo if you want to restore a change.",
+  "onboardingSlotToolsTitle": "Slot tools",
+  "onboardingSlotToolsBody": "Recenter runs automatic eye alignment again. Reset clears manual edits from this session. Replace imports a different photo for this slot.",
+  "onboardingSlotSaveTitle": "Save this slot",
+  "onboardingSlotSaveBody": "Tap Save to return to your gaze grid."
 }

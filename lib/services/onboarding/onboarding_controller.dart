@@ -31,6 +31,11 @@ class OnboardingController extends ChangeNotifier {
   final GlobalKey detailFineTuneIntroKey = GlobalKey();
   final GlobalKey detailCompactDualKey = GlobalKey();
   final GlobalKey detailInfoEditKey = GlobalKey();
+  final GlobalKey detailTapFilledSlotKey = GlobalKey();
+  final GlobalKey slotEditorGesturesKey = GlobalKey();
+  final GlobalKey slotEditorUndoRedoKey = GlobalKey();
+  final GlobalKey slotEditorToolsKey = GlobalKey();
+  final GlobalKey slotEditorSaveKey = GlobalKey();
 
   OnboardingLaunchMode _launchMode = OnboardingLaunchMode.automatic;
   OnboardingStep? _currentStep;
@@ -93,6 +98,11 @@ class OnboardingController extends ChangeNotifier {
       OnboardingStep.detailFineTuneIntro => detailFineTuneIntroKey,
       OnboardingStep.detailCompactDual => detailCompactDualKey,
       OnboardingStep.detailInfoEdit => detailInfoEditKey,
+      OnboardingStep.detailTapFilledSlot => detailTapFilledSlotKey,
+      OnboardingStep.slotEditorGestures => slotEditorGesturesKey,
+      OnboardingStep.slotEditorUndoRedo => slotEditorUndoRedoKey,
+      OnboardingStep.slotEditorTools => slotEditorToolsKey,
+      OnboardingStep.slotEditorSave => slotEditorSaveKey,
       _ => null,
     };
   }

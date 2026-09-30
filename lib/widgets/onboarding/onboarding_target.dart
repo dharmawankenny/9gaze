@@ -51,6 +51,7 @@ class OnboardingTarget extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final copy = OnboardingStrings.forStep(l10n, step);
     final tapToAdvance = OnboardingStrings.isTapToAdvance(step);
+    final waitsForAction = OnboardingStrings.waitsForAction(step);
     final tooltipPosition = OnboardingStrings.tooltipPositionFor(step);
     final key = onboarding.keyFor(step);
     if (key == null) return child;
@@ -91,7 +92,7 @@ class OnboardingTarget extends StatelessWidget {
         onboarding: onboarding,
         title: copy.title,
         body: copy.body,
-        showAdvanceButton: !tapToAdvance,
+        showAdvanceButton: !tapToAdvance && !waitsForAction,
         onAdvance: handleAdvance,
         onSkip: () => onboarding.requestSkipTour(context),
       ),

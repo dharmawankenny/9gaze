@@ -655,6 +655,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The name and notes for this grid are here. Tap Update to change them anytime.'**
   String get onboardingDetailInfoBody;
+
+  /// No description provided for @onboardingDetailTapSlotTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Fine-tune this slot'**
+  String get onboardingDetailTapSlotTitle;
+
+  /// No description provided for @onboardingDetailTapSlotBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap the slot you just filled. You can adjust position, zoom, and rotation on the next screen.'**
+  String get onboardingDetailTapSlotBody;
+
+  /// No description provided for @onboardingSlotGesturesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Adjust the framing'**
+  String get onboardingSlotGesturesTitle;
+
+  /// No description provided for @onboardingSlotGesturesBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Pinch to zoom, drag to pan, twist to rotate. Try a small adjustment if auto-alignment needs a nudge.'**
+  String get onboardingSlotGesturesBody;
+
+  /// No description provided for @onboardingSlotUndoTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Undo and redo'**
+  String get onboardingSlotUndoTitle;
+
+  /// No description provided for @onboardingSlotUndoBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap Undo to step back, then Redo if you want to restore a change.'**
+  String get onboardingSlotUndoBody;
+
+  /// No description provided for @onboardingSlotToolsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Slot tools'**
+  String get onboardingSlotToolsTitle;
+
+  /// No description provided for @onboardingSlotToolsBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Recenter runs automatic eye alignment again. Reset clears manual edits from this session. Replace imports a different photo for this slot.'**
+  String get onboardingSlotToolsBody;
+
+  /// No description provided for @onboardingSlotSaveTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Save this slot'**
+  String get onboardingSlotSaveTitle;
+
+  /// No description provided for @onboardingSlotSaveBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap Save to return to your gaze grid.'**
+  String get onboardingSlotSaveBody;
 }
 
 class _AppLocalizationsDelegate

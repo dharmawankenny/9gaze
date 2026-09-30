@@ -308,4 +308,38 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get onboardingDetailInfoBody =>
       'The name and notes for this grid are here. Tap Update to change them anytime.';
+
+  @override
+  String get onboardingDetailTapSlotTitle => 'Fine-tune this slot';
+
+  @override
+  String get onboardingDetailTapSlotBody =>
+      'Tap the slot you just filled. You can adjust position, zoom, and rotation on the next screen.';
+
+  @override
+  String get onboardingSlotGesturesTitle => 'Adjust the framing';
+
+  @override
+  String get onboardingSlotGesturesBody =>
+      'Pinch to zoom, drag to pan, twist to rotate. Try a small adjustment if auto-alignment needs a nudge.';
+
+  @override
+  String get onboardingSlotUndoTitle => 'Undo and redo';
+
+  @override
+  String get onboardingSlotUndoBody =>
+      'Tap Undo to step back, then Redo if you want to restore a change.';
+
+  @override
+  String get onboardingSlotToolsTitle => 'Slot tools';
+
+  @override
+  String get onboardingSlotToolsBody =>
+      'Recenter runs automatic eye alignment again. Reset clears manual edits from this session. Replace imports a different photo for this slot.';
+
+  @override
+  String get onboardingSlotSaveTitle => 'Save this slot';
+
+  @override
+  String get onboardingSlotSaveBody => 'Tap Save to return to your gaze grid.';
 }
