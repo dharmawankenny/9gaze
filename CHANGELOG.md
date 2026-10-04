@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.3.0] - 2026-10-04
+
+### English
+
+- **First-run tour**: a walkthrough from creating a gaze, filling the grid, and framing a slot through to export. Replay it any time from Settings.
+- **Settings**: the home-screen gear opens storage use, the About details, and a way to restart the tour.
+- **Backups**: export every gaze, source photo, and thumbnail into one .9gaze file, then import that file to restore the library on this device.
+
+### Bahasa Indonesia
+
+- **Tur pertama**: panduan dari membuat tatapan, mengisi kotak, dan mengatur bingkai slot sampai mengekspor. Bisa diulang kapan saja dari Pengaturan.
+- **Pengaturan**: ikon gerigi di beranda membuka pemakaian penyimpanan, info Tentang, dan cara mengulang tur.
+- **Cadangan**: ekspor setiap tatapan, foto sumber, dan thumbnail ke satu file .9gaze, lalu impor file itu untuk memulihkan pustaka di perangkat ini.
+
+---
+
 ## [1.2.0] - 2026-05-09
 
 ### English
