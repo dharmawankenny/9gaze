@@ -25,6 +25,13 @@ class OnboardingStrings {
       final pickCopy = _pickModeCopy(l10n, step);
       if (pickCopy != null) return pickCopy;
     }
+    if (step == OnboardingStep.detailText &&
+        focus == OnboardingBulkFocus.exit) {
+      return (
+        title: l10n.onboardingDetailTextDoneTitle,
+        body: l10n.onboardingDetailTextDoneBody,
+      );
+    }
     return switch (step) {
       OnboardingStep.welcome => (
         title: l10n.onboardingWelcomeTitle,
@@ -92,6 +99,10 @@ class OnboardingStrings {
         title: l10n.onboardingSlotUndoTitle,
         body: l10n.onboardingSlotUndoBody,
       ),
+      OnboardingStep.slotEditorResetRecenter => (
+        title: l10n.onboardingSlotResetTitle,
+        body: l10n.onboardingSlotResetBody,
+      ),
       OnboardingStep.slotEditorTools => (
         title: l10n.onboardingSlotToolsTitle,
         body: l10n.onboardingSlotToolsBody,
@@ -154,6 +165,7 @@ class OnboardingStrings {
     return switch (step) {
       OnboardingStep.slotEditorGestures ||
       OnboardingStep.slotEditorUndoRedo ||
+      OnboardingStep.slotEditorResetRecenter ||
       OnboardingStep.detailReposition ||
       OnboardingStep.detailRearrange => true,
       _ => false,
@@ -198,6 +210,7 @@ class OnboardingStrings {
       OnboardingStep.detailInfoEdit ||
       OnboardingStep.slotEditorGestures ||
       OnboardingStep.slotEditorUndoRedo ||
+      OnboardingStep.slotEditorResetRecenter ||
       OnboardingStep.slotEditorTools => TooltipPosition.top,
       OnboardingStep.detailTapFilledSlot ||
       OnboardingStep.slotEditorSave ||

@@ -331,11 +331,18 @@ class AppLocalizationsId extends AppLocalizations {
       'Ketuk Undo untuk mundur, lalu Redo jika ingin mengembalikan perubahan.';
 
   @override
-  String get onboardingSlotToolsTitle => 'Alat slot';
+  String get onboardingSlotResetTitle => 'Reset dan tengahkan';
+
+  @override
+  String get onboardingSlotResetBody =>
+      'Ketuk Reset untuk menghapus edit sesi ini, lalu Tengahkan untuk menjajarkan mata lagi.';
+
+  @override
+  String get onboardingSlotToolsTitle => 'Ganti dan ekspor';
 
   @override
   String get onboardingSlotToolsBody =>
-      'Tengahkan menjalankan penjajaran mata otomatis lagi. Reset menghapus edit manual sesi ini. Ganti mengimpor foto lain untuk slot ini.';
+      'Ganti mengimpor foto lain untuk slot ini. Ekspor menyimpan slot ini ke galeri. Ketuk Lanjut jika sudah siap.';
 
   @override
   String get onboardingSlotSaveTitle => 'Simpan slot ini';
@@ -378,6 +385,13 @@ class AppLocalizationsId extends AppLocalizations {
   @override
   String get onboardingDetailTextBody =>
       'Ketuk Tambah Teks, lalu pindahkan, ubah skala, dan gaya label Anda. Ketuk Simpan, lalu keluar dari mode ubah.';
+
+  @override
+  String get onboardingDetailTextDoneTitle => 'Pengeditan selesai';
+
+  @override
+  String get onboardingDetailTextDoneBody =>
+      'Ketuk Selesai untuk keluar dari mode ubah.';
 
   @override
   String get onboardingDetailPickRepositionTitle => 'Buka posisi';

@@ -78,6 +78,14 @@ class OnboardingTarget extends StatelessWidget {
         forceTapToAdvance || OnboardingStrings.isTapToAdvance(step);
     final waitsForAction =
         !forceTapToAdvance && OnboardingStrings.waitsForAction(step);
+    // Text fields and action steps need the real control. Every
+    // other highlight swallows the tap so it cannot dismiss the tour.
+    final allowChildGestures =
+        !onboarding.interactionLocked &&
+        (step == OnboardingStep.createName ||
+            step == OnboardingStep.createNotes ||
+            (waitsForAction && !forceTapToAdvance));
+    final performTargetTap = tapToAdvance && !onboarding.interactionLocked;
     final resolvedTooltipPosition =
         tooltipPosition ?? OnboardingStrings.tooltipPositionFor(step);
     final key = onboarding.keyFor(step);
@@ -102,22 +110,23 @@ class OnboardingTarget extends StatelessWidget {
       tooltipPosition: resolvedTooltipPosition,
       disableMovingAnimation: true,
       toolTipSlideEndDistance: 0,
-      toolTipMargin: step == OnboardingStep.homeEmptyList ? 20 : 16,
+      toolTipMargin: 16,
       targetTooltipGap: step == OnboardingStep.homeEmptyList ? 20 : 10,
       enableAutoScroll: enableAutoScroll,
       scrollAlignment: scrollAlignment,
-      onBarrierClick: () {
-        onboarding.requestSkipTour(context);
-      },
-      disableDefaultTargetGestures: false,
-      disposeOnTap: tapToAdvance ? true : null,
-      onTargetClick: tapToAdvance
+      disableDefaultTargetGestures: allowChildGestures,
+      // disposeOnTap true also treats a tooltip tap as dismiss.
+      // Target taps dismiss inside [onTargetClick] instead.
+      disposeOnTap: performTargetTap || !allowChildGestures ? false : null,
+      onTargetClick: performTargetTap
           ? () {
               ShowcaseView.get().dismiss();
               onboarding.clearShowcaseSession();
               onTargetTap?.call();
             }
-          : null,
+          : allowChildGestures
+          ? null
+          : () {},
       container: _OnboardingTooltipCard(
         step: step,
         onboarding: onboarding,
@@ -189,81 +198,83 @@ class _OnboardingTooltipCardState extends State<_OnboardingTooltipCard> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final cardWidth = (MediaQuery.sizeOf(context).width - 40).clamp(
-      240.0,
-      360.0,
-    );
+    // Same 16px screen inset as the full-width Create Gaze button.
+    final cardWidth = MediaQuery.sizeOf(context).width - 32;
 
-    return SizedBox(
-      width: cardWidth,
-      child: Material(
-        color: kDarkBlue,
-        elevation: 8,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 8, 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Text(
-                      widget.title,
-                      style: GoogleFonts.bricolageGrotesque(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w700,
-                        color: kWhite,
-                        height: 1.25,
+    return GestureDetector(
+      onTap: () {},
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        width: cardWidth,
+        child: Material(
+          color: kDarkBlue,
+          elevation: 8,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        widget.title,
+                        style: GoogleFonts.bricolageGrotesque(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                          color: kWhite,
+                          height: 1.25,
+                        ),
+                      ),
+                    ),
+                    OnboardingSkipTourButton(onSkip: widget.onSkip),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  widget.body,
+                  style: GoogleFonts.bricolageGrotesque(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                    color: kWhite.withValues(alpha: 0.75),
+                    height: 1.4,
+                  ),
+                ),
+                if (widget.showAdvanceButton) ...[
+                  const SizedBox(height: 14),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: _advanceEnabled ? widget.onAdvance : null,
+                      style: TextButton.styleFrom(
+                        backgroundColor: kAccentBlue,
+                        disabledBackgroundColor: kAccentBlue.withValues(
+                          alpha: 0.35,
+                        ),
+                        foregroundColor: kWhite,
+                        disabledForegroundColor: kWhite.withValues(alpha: 0.5),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 10,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(50),
+                        ),
+                      ),
+                      child: Text(
+                        l10n.onboardingNext,
+                        style: GoogleFonts.bricolageGrotesque(
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ),
-                  OnboardingSkipTourButton(onSkip: widget.onSkip),
                 ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                widget.body,
-                style: GoogleFonts.bricolageGrotesque(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w400,
-                  color: kWhite.withValues(alpha: 0.75),
-                  height: 1.4,
-                ),
-              ),
-              if (widget.showAdvanceButton) ...[
-                const SizedBox(height: 14),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: _advanceEnabled ? widget.onAdvance : null,
-                    style: TextButton.styleFrom(
-                      backgroundColor: kAccentBlue,
-                      disabledBackgroundColor: kAccentBlue.withValues(
-                        alpha: 0.35,
-                      ),
-                      foregroundColor: kWhite,
-                      disabledForegroundColor: kWhite.withValues(alpha: 0.5),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 10,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(50),
-                      ),
-                    ),
-                    child: Text(
-                      l10n.onboardingNext,
-                      style: GoogleFonts.bricolageGrotesque(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
               ],
-            ],
+            ),
           ),
         ),
       ),

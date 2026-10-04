@@ -33,6 +33,7 @@ class _NewGazeSheetState extends State<NewGazeSheet> {
   final _nameController = TextEditingController();
   final _notesController = TextEditingController();
   final _focusNode = FocusNode();
+  final _notesFocusNode = FocusNode();
 
   /// True while the async insert is in-flight.
   bool _loading = false;
@@ -68,12 +69,18 @@ class _NewGazeSheetState extends State<NewGazeSheet> {
     _nameController.dispose();
     _notesController.dispose();
     _focusNode.dispose();
+    _notesFocusNode.dispose();
     super.dispose();
   }
 
   void _onOnboardingStepChanged() {
     _syncCreateNameAdvanceEnabled();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _tryStartSheetShowcase());
+    if (_onboarding?.currentStep == OnboardingStep.createNotes) {
+      _notesFocusNode.requestFocus();
+    }
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _tryStartSheetShowcase(),
+    );
   }
 
   /// Enables tooltip Next once the gaze name field has text.
@@ -175,32 +182,32 @@ class _NewGazeSheetState extends State<NewGazeSheet> {
             step: OnboardingStep.createName,
             targetBorderRadius: BorderRadius.circular(50),
             child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
-            decoration: BoxDecoration(
-              color: kDarkBlue,
-              borderRadius: BorderRadius.circular(50),
-            ),
-            child: TextField(
-              controller: _nameController,
-              focusNode: _focusNode,
-              autofocus: true,
-              enabled: !_submitted,
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) => _handleSubmit(),
-              style: GoogleFonts.bricolageGrotesque(
-                color: kWhite,
-                fontSize: 16,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+              decoration: BoxDecoration(
+                color: kDarkBlue,
+                borderRadius: BorderRadius.circular(50),
               ),
-              decoration: InputDecoration(
-                border: InputBorder.none,
-                hintText: l10n.gazeDetailName,
-                hintStyle: GoogleFonts.bricolageGrotesque(
-                  color: hintColor,
+              child: TextField(
+                controller: _nameController,
+                focusNode: _focusNode,
+                autofocus: true,
+                enabled: !_submitted,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _handleSubmit(),
+                style: GoogleFonts.bricolageGrotesque(
+                  color: kWhite,
                   fontSize: 16,
+                ),
+                decoration: InputDecoration(
+                  border: InputBorder.none,
+                  hintText: l10n.gazeDetailName,
+                  hintStyle: GoogleFonts.bricolageGrotesque(
+                    color: hintColor,
+                    fontSize: 16,
+                  ),
                 ),
               ),
             ),
-          ),
           ),
 
           const SizedBox(height: 12),
@@ -210,31 +217,32 @@ class _NewGazeSheetState extends State<NewGazeSheet> {
             step: OnboardingStep.createNotes,
             targetBorderRadius: BorderRadius.circular(16),
             child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-            decoration: BoxDecoration(
-              color: kDarkBlue,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: TextField(
-              controller: _notesController,
-              enabled: !_submitted,
-              maxLines: 4,
-              minLines: 3,
-              textInputAction: TextInputAction.newline,
-              style: GoogleFonts.bricolageGrotesque(
-                color: kWhite,
-                fontSize: 14,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+              decoration: BoxDecoration(
+                color: kDarkBlue,
+                borderRadius: BorderRadius.circular(16),
               ),
-              decoration: InputDecoration(
-                border: InputBorder.none,
-                hintText: l10n.notesOptional,
-                hintStyle: GoogleFonts.bricolageGrotesque(
-                  color: hintColor,
+              child: TextField(
+                controller: _notesController,
+                focusNode: _notesFocusNode,
+                enabled: !_submitted,
+                maxLines: 4,
+                minLines: 3,
+                textInputAction: TextInputAction.newline,
+                style: GoogleFonts.bricolageGrotesque(
+                  color: kWhite,
                   fontSize: 14,
+                ),
+                decoration: InputDecoration(
+                  border: InputBorder.none,
+                  hintText: l10n.notesOptional,
+                  hintStyle: GoogleFonts.bricolageGrotesque(
+                    color: hintColor,
+                    fontSize: 14,
+                  ),
                 ),
               ),
             ),
-          ),
           ),
 
           const SizedBox(height: 12),
@@ -250,47 +258,45 @@ class _NewGazeSheetState extends State<NewGazeSheet> {
                     if (onboarding?.isActive == true &&
                         onboarding!.currentStep ==
                             OnboardingStep.createSubmit) {
-                      onboarding.advance(
-                        step: OnboardingStep.detailSlotsGrid,
-                      );
+                      onboarding.advance(step: OnboardingStep.detailSlotsGrid);
                     }
                     _handleSubmit();
                   },
             child: SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: ElevatedButton(
-              onPressed: _submitted
-                  ? null
-                  : () {
-                      final onboarding = OnboardingScope.maybeOf(context);
-                      if (onboarding?.isActive == true &&
-                          onboarding!.currentStep ==
-                              OnboardingStep.createSubmit) {
-                        return;
-                      }
-                      _handleSubmit();
-                    },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _submitted
-                    ? kAccentBlue.withValues(alpha: 0.6)
-                    : kAccentBlue,
-                foregroundColor: kWhite,
-                disabledBackgroundColor: _submitted
-                    ? kAccentBlue.withValues(alpha: 0.6)
-                    : null,
-                disabledForegroundColor: kWhite,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(50),
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                onPressed: _submitted
+                    ? null
+                    : () {
+                        final onboarding = OnboardingScope.maybeOf(context);
+                        if (onboarding?.isActive == true &&
+                            onboarding!.currentStep ==
+                                OnboardingStep.createSubmit) {
+                          return;
+                        }
+                        _handleSubmit();
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _submitted
+                      ? kAccentBlue.withValues(alpha: 0.6)
+                      : kAccentBlue,
+                  foregroundColor: kWhite,
+                  disabledBackgroundColor: _submitted
+                      ? kAccentBlue.withValues(alpha: 0.6)
+                      : null,
+                  disabledForegroundColor: kWhite,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(50),
+                  ),
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
                 ),
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: _submitted
+                    ? _buildSubmittedContent(l10n)
+                    : _buildIdleContent(l10n),
               ),
-              child: _submitted
-                  ? _buildSubmittedContent(l10n)
-                  : _buildIdleContent(l10n),
             ),
-          ),
           ),
         ],
       ),

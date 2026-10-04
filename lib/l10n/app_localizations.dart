@@ -692,16 +692,28 @@ abstract class AppLocalizations {
   /// **'Tap Undo to step back, then Redo if you want to restore a change.'**
   String get onboardingSlotUndoBody;
 
+  /// No description provided for @onboardingSlotResetTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset and recenter'**
+  String get onboardingSlotResetTitle;
+
+  /// No description provided for @onboardingSlotResetBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap Reset to clear edits from this session, then Recenter to align the eyes again.'**
+  String get onboardingSlotResetBody;
+
   /// No description provided for @onboardingSlotToolsTitle.
   ///
   /// In en, this message translates to:
-  /// **'Slot tools'**
+  /// **'Replace and export'**
   String get onboardingSlotToolsTitle;
 
   /// No description provided for @onboardingSlotToolsBody.
   ///
   /// In en, this message translates to:
-  /// **'Recenter runs automatic eye alignment again. Reset clears manual edits from this session. Replace imports a different photo for this slot.'**
+  /// **'Replace imports another photo for this slot. Export saves this one slot to your gallery. Tap Next when you are ready.'**
   String get onboardingSlotToolsBody;
 
   /// No description provided for @onboardingSlotSaveTitle.
@@ -775,6 +787,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Tap Add Text, then move, scale, and style your label. Tap Save, then exit edit mode.'**
   String get onboardingDetailTextBody;
+
+  /// No description provided for @onboardingDetailTextDoneTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Editing is done'**
+  String get onboardingDetailTextDoneTitle;
+
+  /// No description provided for @onboardingDetailTextDoneBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap Done to leave edit mode.'**
+  String get onboardingDetailTextDoneBody;
 
   /// No description provided for @onboardingDetailPickRepositionTitle.
   ///

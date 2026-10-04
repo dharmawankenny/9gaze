@@ -331,11 +331,18 @@ class AppLocalizationsEn extends AppLocalizations {
       'Tap Undo to step back, then Redo if you want to restore a change.';
 
   @override
-  String get onboardingSlotToolsTitle => 'Slot tools';
+  String get onboardingSlotResetTitle => 'Reset and recenter';
+
+  @override
+  String get onboardingSlotResetBody =>
+      'Tap Reset to clear edits from this session, then Recenter to align the eyes again.';
+
+  @override
+  String get onboardingSlotToolsTitle => 'Replace and export';
 
   @override
   String get onboardingSlotToolsBody =>
-      'Recenter runs automatic eye alignment again. Reset clears manual edits from this session. Replace imports a different photo for this slot.';
+      'Replace imports another photo for this slot. Export saves this one slot to your gallery. Tap Next when you are ready.';
 
   @override
   String get onboardingSlotSaveTitle => 'Save this slot';
@@ -377,6 +384,12 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get onboardingDetailTextBody =>
       'Tap Add Text, then move, scale, and style your label. Tap Save, then exit edit mode.';
+
+  @override
+  String get onboardingDetailTextDoneTitle => 'Editing is done';
+
+  @override
+  String get onboardingDetailTextDoneBody => 'Tap Done to leave edit mode.';
 
   @override
   String get onboardingDetailPickRepositionTitle => 'Open reposition';

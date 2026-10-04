@@ -550,6 +550,16 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
     final assignSlots = targetSlots.take(picked.length).toList();
     setState(() => _pickingInProgress.addAll(assignSlots));
 
+    // Keep the centre-grid highlight up and ignore other taps until
+    // the photo is on the grid and the next step can start.
+    var tourLocked = false;
+    if (awaitingFirstPhoto && onboarding != null) {
+      onboarding.setInteractionLocked(true);
+      onboarding.startShowcaseForCurrentStep();
+      tourLocked = true;
+    }
+    var handedOff = false;
+
     // If picked count fills both primary slots, enable dual-primary
     // on the parent before processing so the grid layout updates.
     final willFillSecondary = assignSlots.contains(SlotKey.primarySecondary);
@@ -575,16 +585,26 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
       }
     }
 
-    if (!awaitingFirstPhoto || onboarding == null || !mounted) return;
-    if (filled.isEmpty ||
-        !onboarding.isActive ||
-        onboarding.currentStep != OnboardingStep.detailPickSlot) {
-      _resumePickSlotShowcase(onboarding, awaitingFirstPhoto);
-      return;
+    try {
+      if (!awaitingFirstPhoto || onboarding == null || !mounted) return;
+      if (filled.isEmpty ||
+          !onboarding.isActive ||
+          onboarding.currentStep != OnboardingStep.detailPickSlot) {
+        _resumePickSlotShowcase(onboarding, awaitingFirstPhoto);
+        return;
+      }
+      onboarding.rememberTutorialSlot(filled.first);
+      onboarding.advance(step: OnboardingStep.detailAutoAlign);
+      onboarding.startShowcaseForCurrentStep();
+      handedOff = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        onboarding.setInteractionLocked(false);
+      });
+    } finally {
+      if (tourLocked && !handedOff) {
+        onboarding?.setInteractionLocked(false);
+      }
     }
-    onboarding.rememberTutorialSlot(filled.first);
-    onboarding.advance(step: OnboardingStep.detailAutoAlign);
-    onboarding.startShowcaseForCurrentStep();
   }
 
   /// Shows the photo-pick tooltip again after a cancelled picker.

@@ -17,6 +17,7 @@ enum OnboardingStep {
   detailTapFilledSlot,
   slotEditorGestures,
   slotEditorUndoRedo,
+  slotEditorResetRecenter,
   slotEditorTools,
   slotEditorSave,
   detailBulkEditButton,
@@ -45,6 +46,7 @@ enum OnboardingStep {
     return switch (this) {
       slotEditorGestures ||
       slotEditorUndoRedo ||
+      slotEditorResetRecenter ||
       slotEditorTools ||
       slotEditorSave => true,
       _ => false,

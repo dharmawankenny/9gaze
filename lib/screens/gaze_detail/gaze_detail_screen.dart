@@ -1801,470 +1801,492 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    return Scaffold(
-      bottomNavigationBar: _isTextMode
-          ? _buildEditBottomPanel()
-          : _isEditMenuMode
-          ? _buildEditMenuBottomBar()
-          : _isRepositionMode
-          ? _buildEditUndoRedoBar(
-              canUndo: _canUndoReposition,
-              canRedo: _canRedoReposition,
-              onUndo: _undoReposition,
-              onRedo: _redoReposition,
-            )
-          : _isRearrangeMode
-          ? _buildEditUndoRedoBar(
-              canUndo: _canUndoRearrange,
-              canRedo: _canRedoRearrange,
-              onUndo: _undoRearrange,
-              onRedo: _redoRearrange,
-            )
-          : SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                ).copyWith(bottom: 16),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: OnboardingTarget(
-                    step: OnboardingStep.detailExport,
-                    tooltipPosition: TooltipPosition.top,
-                    targetBorderRadius: BorderRadius.circular(50),
-                    onTargetTap: _handleOnboardingExport,
-                    child: ElevatedButton(
-                      onPressed: _exporting
-                          ? null
-                          : () {
-                              if (_isOnboardingExportStep()) return;
-                              _handleSaveToGallery();
-                            },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: kAccentBlue,
-                        foregroundColor: kWhite,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(50),
-                        ),
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                      ),
-                      child: _exportSuccessFlash && !_exporting
-                          ? Center(
-                              child: Text(
-                                l10n.exportedSuccessfully,
-                                textAlign: TextAlign.center,
-                                style: GoogleFonts.bricolageGrotesque(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w700,
-                                  color: kWhite,
-                                ),
-                              ),
-                            )
-                          : Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                if (_exporting)
-                                  const SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: kWhite,
-                                    ),
-                                  )
-                                else
-                                  const Icon(
-                                    Icons.download_for_offline_outlined,
-                                    color: kWhite,
-                                    size: 24,
-                                  ),
-                                const SizedBox(width: 12),
-                                Expanded(
+    final tourLocked = OnboardingScope.of(context).interactionLocked;
+    return PopScope(
+      canPop: !tourLocked,
+      child: AbsorbPointer(
+        absorbing: tourLocked,
+        child: Scaffold(
+          bottomNavigationBar: _isTextMode
+              ? _buildEditBottomPanel()
+              : _isEditMenuMode
+              ? _buildEditMenuBottomBar()
+              : _isRepositionMode
+              ? _buildEditUndoRedoBar(
+                  canUndo: _canUndoReposition,
+                  canRedo: _canRedoReposition,
+                  onUndo: _undoReposition,
+                  onRedo: _redoReposition,
+                )
+              : _isRearrangeMode
+              ? _buildEditUndoRedoBar(
+                  canUndo: _canUndoRearrange,
+                  canRedo: _canRedoRearrange,
+                  onUndo: _undoRearrange,
+                  onRedo: _redoRearrange,
+                )
+              : SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                    ).copyWith(bottom: 16),
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: OnboardingTarget(
+                        step: OnboardingStep.detailExport,
+                        tooltipPosition: TooltipPosition.top,
+                        targetBorderRadius: BorderRadius.circular(50),
+                        onTargetTap: _handleOnboardingExport,
+                        child: ElevatedButton(
+                          onPressed: _exporting
+                              ? null
+                              : () {
+                                  if (_isOnboardingExportStep()) return;
+                                  _handleSaveToGallery();
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: kAccentBlue,
+                            foregroundColor: kWhite,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(50),
+                            ),
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                          ),
+                          child: _exportSuccessFlash && !_exporting
+                              ? Center(
                                   child: Text(
-                                    _exporting
-                                        ? l10n.exporting
-                                        : l10n.saveToGallery,
+                                    l10n.exportedSuccessfully,
+                                    textAlign: TextAlign.center,
                                     style: GoogleFonts.bricolageGrotesque(
                                       fontSize: 18,
                                       fontWeight: FontWeight.w700,
                                       color: kWhite,
                                     ),
                                   ),
-                                ),
-                              ],
-                            ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-      body: SafeArea(
-        bottom: false,
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── Top bar ──────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                child: SizedBox(
-                  height: 48,
-                  child: Row(
-                    children: [
-                      if (!_isAnyEditMode)
-                        IconButton(
-                          onPressed: () {
-                            if (_isEditMenuMode) {
-                              _handleToggleEditMode();
-                              return;
-                            }
-                            Navigator.of(context).pop();
-                          },
-                          icon: const Icon(
-                            Icons.arrow_back,
-                            color: kWhite,
-                            size: 24,
-                          ),
-                          tooltip: l10n.back,
-                        ),
-                      const SizedBox(width: 8),
-                      Text(
-                        _getGazeDetailScreenTitle(),
-                        style: GoogleFonts.bricolageGrotesque(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w700,
-                          color: kWhite,
-                          letterSpacing: -1.2,
-                        ),
-                      ),
-                      const Spacer(),
-                      // Right-side actions by edit stage.
-                      _savingEdits
-                          ? const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 16),
-                              child: SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: kWhite,
-                                ),
-                              ),
-                            )
-                          : _isEditMenuMode
-                          ? OnboardingTarget(
-                              step: OnboardingStep.detailText,
-                              isShown: (onboarding) =>
-                                  onboarding.bulkFocus ==
-                                  OnboardingBulkFocus.exit,
-                              forceTapToAdvance: true,
-                              tooltipPosition: TooltipPosition.bottom,
-                              targetBorderRadius: BorderRadius.circular(20),
-                              onTargetTap: _handleOnboardingExitEdit,
-                              child: TextButton(
-                                onPressed: () {
-                                  if (_isOnboardingTextExit()) return;
-                                  _handleToggleEditMode();
-                                },
-                                style: TextButton.styleFrom(
-                                  backgroundColor: kWhite.withValues(
-                                    alpha: 0.08,
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 8,
-                                  ),
-                                  minimumSize: Size.zero,
-                                  tapTargetSize:
-                                      MaterialTapTargetSize.shrinkWrap,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                ),
-                                child: Text(
-                                  l10n.done,
-                                  style: GoogleFonts.bricolageGrotesque(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: kWhite,
-                                  ),
-                                ),
-                              ),
-                            )
-                          : _wrapHeaderActionForTour(
-                              TextButton(
-                                onPressed: _handleHeaderActionTap,
-                                style: TextButton.styleFrom(
-                                  backgroundColor: _isAnyEditMode
-                                      ? (_canSaveCurrentEditStage
-                                            ? kAccentBlue
-                                            : kWhite.withValues(alpha: 0.08))
-                                      : kWhite.withValues(alpha: 0.08),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 8,
-                                  ),
-                                  minimumSize: Size.zero,
-                                  tapTargetSize:
-                                      MaterialTapTargetSize.shrinkWrap,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                ),
-                                child: Text(
-                                  _isAnyEditMode ? l10n.save : l10n.edit,
-                                  style: GoogleFonts.bricolageGrotesque(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: kWhite,
-                                  ),
-                                ),
-                              ),
-                            ),
-                      if (_isRearrangeMode ||
-                          _isTextMode ||
-                          _isRepositionMode) ...[
-                        const SizedBox(width: 8),
-                        TextButton(
-                          onPressed: _isRepositionMode
-                              ? _handleCancelRepositionMode
-                              : _isRearrangeMode
-                              ? _handleCancelRearrangeMode
-                              : _handleCancelTextMode,
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                            minimumSize: Size.zero,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          ),
-                          child: Text(
-                            l10n.cancel,
-                            style: GoogleFonts.bricolageGrotesque(
-                              fontSize: 14,
-                              color: kWhite.withValues(alpha: 0.5),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                      ] else if (!_isEditMenuMode)
-                        const SizedBox(width: 8),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 4),
-
-              // ── 3×3 gaze direction grid ───────────────────────
-              OnboardingTarget(
-                step: OnboardingStep.detailRearrange,
-                isShown: (onboarding) =>
-                    onboarding.bulkFocus == OnboardingBulkFocus.primary,
-                targetBorderRadius: BorderRadius.circular(8),
-                child: OnboardingTarget(
-                  step: OnboardingStep.detailReposition,
-                  isShown: (onboarding) =>
-                      onboarding.bulkFocus == OnboardingBulkFocus.primary,
-                  targetBorderRadius: BorderRadius.circular(8),
-                  child: OnboardingTarget(
-                    step: OnboardingStep.detailSlotsGrid,
-                    targetBorderRadius: BorderRadius.circular(8),
-                    child: GazeDirectionGrid(
-                      key: _gridKey,
-                      gazeId: _current.id,
-                      gazeExportName: _current.name,
-                      isDoublePrimary: _dualPrimary,
-                      isCompact: _compactMode,
-                      isEditMode: _isRearrangeMode,
-                      isRepositionMode: _isRepositionMode,
-                      isCellTapEnabled: !_isAnyEditMode,
-                      onDoublePrimaryEnabled: () =>
-                          _handleFlagChanged(doublePrimary: true),
-                      onSaveEdits: _captureSlotEditChanges,
-                      onPendingReorderChanged: _capturePendingReorderChanges,
-                      onSaveReposition: _captureRepositionChanges,
-                      onPendingRepositionChanged:
-                          _capturePendingRepositionChanges,
-                      onCommitEditsBound: (fn) => _commitEdits = fn,
-                      onCommitRepositionBound: (fn) => _commitReposition = fn,
-                      onUndoRepositionBound: (fn) => _undoReposition = fn,
-                      onRedoRepositionBound: (fn) => _redoReposition = fn,
-                      onUndoRearrangeBound: (fn) => _undoRearrange = fn,
-                      onRedoRearrangeBound: (fn) => _redoRearrange = fn,
-                      onRearrangeUndoRedoChanged: (canUndo, canRedo) {
-                        _setStateSafely(() {
-                          _canUndoRearrange = canUndo;
-                          _canRedoRearrange = canRedo;
-                        });
-                      },
-                      onRepositionUndoRedoChanged: (canUndo, canRedo) {
-                        _setStateSafely(() {
-                          _canUndoReposition = canUndo;
-                          _canRedoReposition = canRedo;
-                        });
-                        if (canUndo) _promoteRepositionCoachToSave();
-                      },
-                      overlayBuilder: _buildOverlayLayer,
-                    ),
-                  ),
-                ),
-              ),
-
-              // ── Sections below greyed out in edit mode ────────
-              AnimatedOpacity(
-                opacity: _isAnyEditMode ? 0.25 : 1.0,
-                duration: const Duration(milliseconds: 200),
-                child: IgnorePointer(
-                  ignoring: _isAnyEditMode,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 12),
-
-                      // ── Settings island ───────────────────────
-                      OnboardingTarget(
-                        step: OnboardingStep.detailCompactDual,
-                        enableAutoScroll: true,
-                        scrollAlignment: 0.72,
-                        targetBorderRadius: BorderRadius.circular(16),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                            ).add(const EdgeInsets.only(top: 16)),
-                            decoration: BoxDecoration(
-                              color: kDarkBlue,
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: _ToggleRow(
-                                    label: l10n.compactMode,
-                                    value: _compactMode,
-                                    onChanged: (v) =>
-                                        _handleFlagChanged(compact: v),
-                                  ),
-                                ),
-                                Container(
-                                  width: 1,
-                                  height: 40,
-                                  margin: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                  ),
-                                  color: kWhite.withValues(alpha: 0.08),
-                                ),
-                                Expanded(
-                                  child: _ToggleRow(
-                                    label: l10n.dualPrimary,
-                                    value: _dualPrimary,
-                                    onChanged: (v) =>
-                                        _handleFlagChanged(doublePrimary: v),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      // ── Gaze Detail card ─────────────────────
-                      OnboardingTarget(
-                        step: OnboardingStep.detailInfoEdit,
-                        enableAutoScroll: true,
-                        scrollAlignment: 0.72,
-                        targetBorderRadius: BorderRadius.circular(16),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 12,
-                            ),
-                            decoration: BoxDecoration(
-                              color: kDarkBlue,
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                )
+                              : Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Opacity(
-                                      opacity: 0.5,
-                                      child: Text(
-                                        l10n.gazeDetail,
-                                        style: GoogleFonts.bricolageGrotesque(
-                                          fontSize: 12,
+                                    if (_exporting)
+                                      const SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
                                           color: kWhite,
                                         ),
+                                      )
+                                    else
+                                      const Icon(
+                                        Icons.download_for_offline_outlined,
+                                        color: kWhite,
+                                        size: 24,
                                       ),
-                                    ),
-                                    const Spacer(),
-                                    TextButton(
-                                      onPressed: _handleOpenUpdateSheet,
-                                      style: TextButton.styleFrom(
-                                        backgroundColor: kBlack,
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 4,
-                                        ),
-                                        minimumSize: Size.zero,
-                                        tapTargetSize:
-                                            MaterialTapTargetSize.shrinkWrap,
-                                      ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
                                       child: Text(
-                                        l10n.update,
+                                        _exporting
+                                            ? l10n.exporting
+                                            : l10n.saveToGallery,
                                         style: GoogleFonts.bricolageGrotesque(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w700,
                                           color: kWhite,
                                         ),
                                       ),
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  _current.name,
-                                  style: GoogleFonts.bricolageGrotesque(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.w700,
-                                    color: kWhite,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+          body: SafeArea(
+            bottom: false,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ── Top bar ──────────────────────────────────────
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 8,
+                    ),
+                    child: SizedBox(
+                      height: 48,
+                      child: Row(
+                        children: [
+                          if (!_isAnyEditMode)
+                            IconButton(
+                              onPressed: () {
+                                if (_isEditMenuMode) {
+                                  _handleToggleEditMode();
+                                  return;
+                                }
+                                Navigator.of(context).pop();
+                              },
+                              icon: const Icon(
+                                Icons.arrow_back,
+                                color: kWhite,
+                                size: 24,
+                              ),
+                              tooltip: l10n.back,
+                            ),
+                          const SizedBox(width: 8),
+                          Text(
+                            _getGazeDetailScreenTitle(),
+                            style: GoogleFonts.bricolageGrotesque(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w700,
+                              color: kWhite,
+                              letterSpacing: -1.2,
+                            ),
+                          ),
+                          const Spacer(),
+                          // Right-side actions by edit stage.
+                          _savingEdits
+                              ? const Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 16),
+                                  child: SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: kWhite,
+                                    ),
                                   ),
-                                ),
-                                if (_current.notes != null) ...[
-                                  const SizedBox(height: 4),
-                                  Opacity(
-                                    opacity: 0.75,
+                                )
+                              : _isEditMenuMode
+                              ? OnboardingTarget(
+                                  step: OnboardingStep.detailText,
+                                  isShown: (onboarding) =>
+                                      onboarding.bulkFocus ==
+                                      OnboardingBulkFocus.exit,
+                                  forceTapToAdvance: true,
+                                  tooltipPosition: TooltipPosition.bottom,
+                                  targetBorderRadius: BorderRadius.circular(20),
+                                  onTargetTap: _handleOnboardingExitEdit,
+                                  child: TextButton(
+                                    onPressed: () {
+                                      if (_isOnboardingTextExit()) return;
+                                      _handleToggleEditMode();
+                                    },
+                                    style: TextButton.styleFrom(
+                                      backgroundColor: kWhite.withValues(
+                                        alpha: 0.08,
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 8,
+                                      ),
+                                      minimumSize: Size.zero,
+                                      tapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                    ),
                                     child: Text(
-                                      _current.notes!,
+                                      l10n.done,
                                       style: GoogleFonts.bricolageGrotesque(
                                         fontSize: 14,
+                                        fontWeight: FontWeight.w600,
                                         color: kWhite,
                                       ),
                                     ),
                                   ),
-                                ],
-                                const SizedBox(height: 4),
-                              ],
+                                )
+                              : _wrapHeaderActionForTour(
+                                  TextButton(
+                                    onPressed: _handleHeaderActionTap,
+                                    style: TextButton.styleFrom(
+                                      backgroundColor: _isAnyEditMode
+                                          ? (_canSaveCurrentEditStage
+                                                ? kAccentBlue
+                                                : kWhite.withValues(
+                                                    alpha: 0.08,
+                                                  ))
+                                          : kWhite.withValues(alpha: 0.08),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 8,
+                                      ),
+                                      minimumSize: Size.zero,
+                                      tapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      _isAnyEditMode ? l10n.save : l10n.edit,
+                                      style: GoogleFonts.bricolageGrotesque(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: kWhite,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                          if (_isRearrangeMode ||
+                              _isTextMode ||
+                              _isRepositionMode) ...[
+                            const SizedBox(width: 8),
+                            TextButton(
+                              onPressed: _isRepositionMode
+                                  ? _handleCancelRepositionMode
+                                  : _isRearrangeMode
+                                  ? _handleCancelRearrangeMode
+                                  : _handleCancelTextMode,
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              child: Text(
+                                l10n.cancel,
+                                style: GoogleFonts.bricolageGrotesque(
+                                  fontSize: 14,
+                                  color: kWhite.withValues(alpha: 0.5),
+                                ),
+                              ),
                             ),
-                          ),
+                            const SizedBox(width: 4),
+                          ] else if (!_isEditMenuMode)
+                            const SizedBox(width: 8),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 4),
+
+                  // ── 3×3 gaze direction grid ───────────────────────
+                  OnboardingTarget(
+                    step: OnboardingStep.detailRearrange,
+                    isShown: (onboarding) =>
+                        onboarding.bulkFocus == OnboardingBulkFocus.primary,
+                    targetBorderRadius: BorderRadius.circular(8),
+                    child: OnboardingTarget(
+                      step: OnboardingStep.detailReposition,
+                      isShown: (onboarding) =>
+                          onboarding.bulkFocus == OnboardingBulkFocus.primary,
+                      targetBorderRadius: BorderRadius.circular(8),
+                      child: OnboardingTarget(
+                        step: OnboardingStep.detailSlotsGrid,
+                        targetBorderRadius: BorderRadius.circular(8),
+                        child: GazeDirectionGrid(
+                          key: _gridKey,
+                          gazeId: _current.id,
+                          gazeExportName: _current.name,
+                          isDoublePrimary: _dualPrimary,
+                          isCompact: _compactMode,
+                          isEditMode: _isRearrangeMode,
+                          isRepositionMode: _isRepositionMode,
+                          isCellTapEnabled: !_isAnyEditMode,
+                          onDoublePrimaryEnabled: () =>
+                              _handleFlagChanged(doublePrimary: true),
+                          onSaveEdits: _captureSlotEditChanges,
+                          onPendingReorderChanged:
+                              _capturePendingReorderChanges,
+                          onSaveReposition: _captureRepositionChanges,
+                          onPendingRepositionChanged:
+                              _capturePendingRepositionChanges,
+                          onCommitEditsBound: (fn) => _commitEdits = fn,
+                          onCommitRepositionBound: (fn) =>
+                              _commitReposition = fn,
+                          onUndoRepositionBound: (fn) => _undoReposition = fn,
+                          onRedoRepositionBound: (fn) => _redoReposition = fn,
+                          onUndoRearrangeBound: (fn) => _undoRearrange = fn,
+                          onRedoRearrangeBound: (fn) => _redoRearrange = fn,
+                          onRearrangeUndoRedoChanged: (canUndo, canRedo) {
+                            _setStateSafely(() {
+                              _canUndoRearrange = canUndo;
+                              _canRedoRearrange = canRedo;
+                            });
+                          },
+                          onRepositionUndoRedoChanged: (canUndo, canRedo) {
+                            _setStateSafely(() {
+                              _canUndoReposition = canUndo;
+                              _canRedoReposition = canRedo;
+                            });
+                            if (canUndo) _promoteRepositionCoachToSave();
+                          },
+                          overlayBuilder: _buildOverlayLayer,
                         ),
                       ),
-                      const SizedBox(height: 12),
-                    ],
+                    ),
                   ),
-                ),
+
+                  // ── Sections below greyed out in edit mode ────────
+                  AnimatedOpacity(
+                    opacity: _isAnyEditMode ? 0.25 : 1.0,
+                    duration: const Duration(milliseconds: 200),
+                    child: IgnorePointer(
+                      ignoring: _isAnyEditMode,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 12),
+
+                          // ── Settings island ───────────────────────
+                          OnboardingTarget(
+                            step: OnboardingStep.detailCompactDual,
+                            enableAutoScroll: true,
+                            scrollAlignment: 0.72,
+                            targetBorderRadius: BorderRadius.circular(16),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                ).add(const EdgeInsets.only(top: 16)),
+                                decoration: BoxDecoration(
+                                  color: kDarkBlue,
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: _ToggleRow(
+                                        label: l10n.compactMode,
+                                        value: _compactMode,
+                                        onChanged: (v) =>
+                                            _handleFlagChanged(compact: v),
+                                      ),
+                                    ),
+                                    Container(
+                                      width: 1,
+                                      height: 40,
+                                      margin: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                      ),
+                                      color: kWhite.withValues(alpha: 0.08),
+                                    ),
+                                    Expanded(
+                                      child: _ToggleRow(
+                                        label: l10n.dualPrimary,
+                                        value: _dualPrimary,
+                                        onChanged: (v) => _handleFlagChanged(
+                                          doublePrimary: v,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 12),
+
+                          // ── Gaze Detail card ─────────────────────
+                          OnboardingTarget(
+                            step: OnboardingStep.detailInfoEdit,
+                            enableAutoScroll: true,
+                            scrollAlignment: 0.72,
+                            targetBorderRadius: BorderRadius.circular(16),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 12,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: kDarkBlue,
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.center,
+                                      children: [
+                                        Opacity(
+                                          opacity: 0.5,
+                                          child: Text(
+                                            l10n.gazeDetail,
+                                            style:
+                                                GoogleFonts.bricolageGrotesque(
+                                                  fontSize: 12,
+                                                  color: kWhite,
+                                                ),
+                                          ),
+                                        ),
+                                        const Spacer(),
+                                        TextButton(
+                                          onPressed: _handleOpenUpdateSheet,
+                                          style: TextButton.styleFrom(
+                                            backgroundColor: kBlack,
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                              vertical: 4,
+                                            ),
+                                            minimumSize: Size.zero,
+                                            tapTargetSize: MaterialTapTargetSize
+                                                .shrinkWrap,
+                                          ),
+                                          child: Text(
+                                            l10n.update,
+                                            style:
+                                                GoogleFonts.bricolageGrotesque(
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: kWhite,
+                                                ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      _current.name,
+                                      style: GoogleFonts.bricolageGrotesque(
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.w700,
+                                        color: kWhite,
+                                      ),
+                                    ),
+                                    if (_current.notes != null) ...[
+                                      const SizedBox(height: 4),
+                                      Opacity(
+                                        opacity: 0.75,
+                                        child: Text(
+                                          _current.notes!,
+                                          style: GoogleFonts.bricolageGrotesque(
+                                            fontSize: 14,
+                                            color: kWhite,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                    const SizedBox(height: 4),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),

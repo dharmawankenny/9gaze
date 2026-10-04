@@ -1,6 +1,5 @@
 // State machine for the onboarding tour (eligibility, steps, completion).
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:showcaseview/showcaseview.dart';
 
@@ -34,6 +33,7 @@ class OnboardingController extends ChangeNotifier {
   final GlobalKey detailTapFilledSlotKey = GlobalKey();
   final GlobalKey slotEditorGesturesKey = GlobalKey();
   final GlobalKey slotEditorUndoRedoKey = GlobalKey();
+  final GlobalKey slotEditorResetRecenterKey = GlobalKey();
   final GlobalKey slotEditorToolsKey = GlobalKey();
   final GlobalKey slotEditorSaveKey = GlobalKey();
   final GlobalKey detailBulkEditButtonKey = GlobalKey();
@@ -59,6 +59,7 @@ class OnboardingController extends ChangeNotifier {
   OnboardingBulkFocus? _showcaseStartedFocus;
   OnboardingBulkFocus _bulkFocus = OnboardingBulkFocus.primary;
   bool _skipConfirmShowing = false;
+  bool _interactionLocked = false;
   bool _createNameAdvanceEnabled = false;
   SlotKey? _tutorialSlotKey;
 
@@ -86,6 +87,9 @@ class OnboardingController extends ChangeNotifier {
   /// True while a tour is in progress (welcome through complete).
   bool get isActive => _isActive;
 
+  /// True while the tour is waiting on work and page input must wait.
+  bool get interactionLocked => _interactionLocked;
+
   /// Whether Next is enabled on the create-name onboarding step.
   bool get createNameAdvanceEnabled => _createNameAdvanceEnabled;
 
@@ -94,6 +98,13 @@ class OnboardingController extends ChangeNotifier {
 
   /// Active highlight inside a bulk-edit step.
   OnboardingBulkFocus get bulkFocus => _bulkFocus;
+
+  /// Blocks page input until a tour step finishes work in progress.
+  void setInteractionLocked(bool locked) {
+    if (_interactionLocked == locked) return;
+    _interactionLocked = locked;
+    notifyListeners();
+  }
 
   /// Updates Next availability while the user types a gaze name.
   void setCreateNameAdvanceEnabled(bool enabled) {
@@ -133,6 +144,7 @@ class OnboardingController extends ChangeNotifier {
       OnboardingStep.detailTapFilledSlot => detailTapFilledSlotKey,
       OnboardingStep.slotEditorGestures => slotEditorGesturesKey,
       OnboardingStep.slotEditorUndoRedo => slotEditorUndoRedoKey,
+      OnboardingStep.slotEditorResetRecenter => slotEditorResetRecenterKey,
       OnboardingStep.slotEditorTools => slotEditorToolsKey,
       OnboardingStep.slotEditorSave => slotEditorSaveKey,
       OnboardingStep.detailBulkEditButton => detailBulkEditButtonKey,
@@ -175,15 +187,14 @@ class OnboardingController extends ChangeNotifier {
 
   /// Whether the automatic tour should run on this launch.
   ///
-  /// Debug builds ignore the completed flag when no gazes are saved,
-  /// so the tour can be replayed without clearing app storage.
+  /// Saved gazes mean the tour already finished. An empty library
+  /// still respects the completed flag.
   Future<bool> _shouldShowAutomaticOnboarding() async {
     final count = await GazesRepository(_db).count();
     if (count > 0) {
       await OnboardingPrefs.markCompleted();
       return false;
     }
-    if (kDebugMode) return true;
     if (await OnboardingPrefs.isCompleted()) return false;
     return true;
   }
@@ -223,7 +234,7 @@ class OnboardingController extends ChangeNotifier {
 
   /// Shows skip confirmation; completes onboarding if confirmed.
   Future<void> requestSkipTour(BuildContext context) async {
-    if (!_isActive || _skipConfirmShowing) return;
+    if (!_isActive || _skipConfirmShowing || _interactionLocked) return;
     _skipConfirmShowing = true;
     try {
       final confirmed = await OnboardingSkipConfirmDialog.show(context);
@@ -258,6 +269,7 @@ class OnboardingController extends ChangeNotifier {
     _bulkFocus = OnboardingBulkFocus.primary;
     _createNameAdvanceEnabled = false;
     _tutorialSlotKey = null;
+    _interactionLocked = false;
     notifyListeners();
   }
 
@@ -272,6 +284,7 @@ class OnboardingController extends ChangeNotifier {
     _bulkFocus = OnboardingBulkFocus.primary;
     _createNameAdvanceEnabled = false;
     _tutorialSlotKey = null;
+    _interactionLocked = false;
     _skipEmptyHomeList = false;
     _launchMode = OnboardingLaunchMode.automatic;
     notifyListeners();

@@ -111,6 +111,10 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
   /// Tour gates for the undo-then-redo step.
   bool _onboardingDidUndo = false;
   bool _onboardingDidRedo = false;
+
+  /// Tour gates for the reset-then-recenter step.
+  bool _onboardingDidReset = false;
+  bool _onboardingDidRecenter = false;
   Animation<double>? _routeAnimation;
   AnimationStatusListener? _routeStatusListener;
 
@@ -203,6 +207,7 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
       _rotation = _savedRotation;
       _history.clear();
     });
+    _noteOnboardingResetRecenter(didReset: true);
   }
 
   /// Re-centers transform to MLKit auto-detected framing.
@@ -219,6 +224,7 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
         rotation: autoFit.rotation,
       ),
     );
+    _noteOnboardingResetRecenter(didRecenter: true);
   }
 
   /// Computes MLKit-like auto-fit from current slot metadata.
@@ -350,6 +356,23 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
     if (didUndo) _onboardingDidUndo = true;
     if (didRedo) _onboardingDidRedo = true;
     if (!_onboardingDidUndo || !_onboardingDidRedo) return;
+    _advanceOnboarding(OnboardingStep.slotEditorResetRecenter);
+  }
+
+  /// Advances after the tour has used both Reset and Recenter.
+  void _noteOnboardingResetRecenter({
+    bool didReset = false,
+    bool didRecenter = false,
+  }) {
+    final onboarding = OnboardingScope.maybeOf(context);
+    if (onboarding == null ||
+        !onboarding.isActive ||
+        onboarding.currentStep != OnboardingStep.slotEditorResetRecenter) {
+      return;
+    }
+    if (didReset) _onboardingDidReset = true;
+    if (didRecenter) _onboardingDidRecenter = true;
+    if (!_onboardingDidReset || !_onboardingDidRecenter) return;
     _advanceOnboarding(OnboardingStep.slotEditorTools);
   }
 
@@ -573,6 +596,10 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
   Widget build(BuildContext context) {
     final aspectRatio = widget.isCompact ? 2.0 : 1.0;
     final l10n = AppLocalizations.of(context)!;
+    final onboarding = OnboardingScope.maybeOf(context);
+    final blockSlotFileActions =
+        onboarding?.isActive == true &&
+        onboarding!.currentStep == OnboardingStep.slotEditorTools;
 
     return Scaffold(
       backgroundColor: kBlack,
@@ -623,73 +650,90 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
         top: false,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-          child: OnboardingTarget(
-            step: OnboardingStep.slotEditorTools,
-            targetBorderRadius: BorderRadius.circular(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  l10n.pinchZoomDragTwist,
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.bricolageGrotesque(
-                    color: kWhite.withValues(alpha: 0.35),
-                    fontSize: 12,
-                  ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                l10n.pinchZoomDragTwist,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.bricolageGrotesque(
+                  color: kWhite.withValues(alpha: 0.35),
+                  fontSize: 12,
                 ),
-                const SizedBox(height: 12),
-                OnboardingTarget(
-                  step: OnboardingStep.slotEditorUndoRedo,
-                  targetBorderRadius: BorderRadius.circular(12),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        tooltip: l10n.undo,
-                        color: kWhite.withValues(alpha: 0.9),
-                        onPressed: (_saving || !_canUndo) ? null : _undo,
-                        icon: const Icon(Icons.undo_rounded),
-                      ),
-                      IconButton(
-                        tooltip: l10n.redo,
-                        color: kWhite.withValues(alpha: 0.9),
-                        onPressed: (_saving || !_canRedo) ? null : _redo,
-                        icon: const Icon(Icons.redo_rounded),
-                      ),
-                      IconButton(
-                        tooltip: l10n.reset,
-                        color: kWhite.withValues(alpha: 0.9),
-                        onPressed: (_saving || !_hasSessionUndoHistory)
-                            ? null
-                            : _handleReset,
-                        icon: const Icon(Icons.restart_alt_rounded),
-                      ),
-                      const Spacer(),
-                      TextButton(
-                        onPressed: _saving ? null : _handleRecenter,
-                        style: TextButton.styleFrom(
-                          foregroundColor: kWhite.withValues(alpha: 0.9),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  OnboardingTarget(
+                    step: OnboardingStep.slotEditorUndoRedo,
+                    targetBorderRadius: BorderRadius.circular(12),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          tooltip: l10n.undo,
+                          color: kWhite.withValues(alpha: 0.9),
+                          onPressed: (_saving || !_canUndo) ? null : _undo,
+                          icon: const Icon(Icons.undo_rounded),
                         ),
-                        child: Text(
-                          l10n.recenter,
-                          style: GoogleFonts.bricolageGrotesque(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                          ),
+                        IconButton(
+                          tooltip: l10n.redo,
+                          color: kWhite.withValues(alpha: 0.9),
+                          onPressed: (_saving || !_canRedo) ? null : _redo,
+                          icon: const Icon(Icons.redo_rounded),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Row(
+                  Expanded(
+                    child: OnboardingTarget(
+                      step: OnboardingStep.slotEditorResetRecenter,
+                      targetBorderRadius: BorderRadius.circular(12),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            tooltip: l10n.reset,
+                            color: kWhite.withValues(alpha: 0.9),
+                            onPressed: (_saving || !_hasSessionUndoHistory)
+                                ? null
+                                : _handleReset,
+                            icon: const Icon(Icons.restart_alt_rounded),
+                          ),
+                          const Spacer(),
+                          TextButton(
+                            onPressed: _saving ? null : _handleRecenter,
+                            style: TextButton.styleFrom(
+                              foregroundColor: kWhite.withValues(alpha: 0.9),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                            ),
+                            child: Text(
+                              l10n.recenter,
+                              style: GoogleFonts.bricolageGrotesque(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              OnboardingTarget(
+                step: OnboardingStep.slotEditorTools,
+                targetBorderRadius: BorderRadius.circular(16),
+                child: Row(
                   children: [
                     Expanded(
                       child: OutlinedButton(
-                        onPressed: _saving ? null : _handleReplaceImage,
+                        onPressed: (_saving || blockSlotFileActions)
+                            ? null
+                            : _handleReplaceImage,
                         style: OutlinedButton.styleFrom(
                           foregroundColor: kWhite.withValues(alpha: 0.8),
                           side: BorderSide(
@@ -706,7 +750,8 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
                         onPressed:
                             (_saving ||
                                 _exportingSlot ||
-                                _slotExportSuccessFlash)
+                                _slotExportSuccessFlash ||
+                                blockSlotFileActions)
                             ? null
                             : _handleExportSlotToGallery,
                         style: OutlinedButton.styleFrom(
@@ -744,8 +789,8 @@ class _SlotEditorScreenState extends State<SlotEditorScreen> {
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
