@@ -112,6 +112,14 @@ class OnboardingStrings {
         title: l10n.onboardingDetailTextTitle,
         body: l10n.onboardingDetailTextBody,
       ),
+      OnboardingStep.detailExport => (
+        title: l10n.onboardingDetailExportTitle,
+        body: l10n.onboardingDetailExportBody,
+      ),
+      OnboardingStep.complete => (
+        title: l10n.onboardingCompleteTitle,
+        body: l10n.onboardingCompleteBody,
+      ),
       _ => (title: l10n.appTitle, body: ''),
     };
   }
@@ -127,7 +135,8 @@ class OnboardingStrings {
       OnboardingStep.detailPickSlot ||
       OnboardingStep.detailTapFilledSlot ||
       OnboardingStep.slotEditorSave ||
-      OnboardingStep.detailBulkEditButton => true,
+      OnboardingStep.detailBulkEditButton ||
+      OnboardingStep.detailExport => true,
       _ => false,
     };
   }
@@ -188,7 +197,8 @@ class OnboardingStrings {
       OnboardingStep.detailReposition ||
       OnboardingStep.detailRearrange => TooltipPosition.bottom,
       OnboardingStep.detailEditMenu ||
-      OnboardingStep.detailText => TooltipPosition.top,
+      OnboardingStep.detailText ||
+      OnboardingStep.detailExport => TooltipPosition.top,
       _ => null,
     };
   }

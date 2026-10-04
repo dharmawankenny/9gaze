@@ -399,4 +399,18 @@ class AppLocalizationsId extends AppLocalizations {
   @override
   String get onboardingDetailPickTextBody =>
       'Ketuk Teks untuk menambah label di grid.';
+
+  @override
+  String get onboardingDetailExportTitle => 'Ekspor grid Anda';
+
+  @override
+  String get onboardingDetailExportBody =>
+      'Ketuk Ekspor ke Galeri untuk menyimpan grid 3×3 jadi satu gambar di perpustakaan foto. Siap dibagikan dalam hitungan detik.';
+
+  @override
+  String get onboardingCompleteTitle => 'Anda siap';
+
+  @override
+  String get onboardingCompleteBody =>
+      'Itu alur lengkapnya: impor, tetapkan slot, penjajaran otomatis, sesuaikan, ekspor. Semua tetap di perangkat Anda. Ada pertanyaan? Email 9gaze@atelierkensa.com.';
 }

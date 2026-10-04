@@ -133,5 +133,9 @@
   "onboardingDetailPickRearrangeTitle": "Open rearrange",
   "onboardingDetailPickRearrangeBody": "Tap Rearrange to swap photos between slots.",
   "onboardingDetailPickTextTitle": "Open texts",
-  "onboardingDetailPickTextBody": "Tap Texts to add a label on the grid."
+  "onboardingDetailPickTextBody": "Tap Texts to add a label on the grid.",
+  "onboardingDetailExportTitle": "Export your grid",
+  "onboardingDetailExportBody": "Tap Export to Gallery to save the finished 3×3 composed image to your photo library. Ready to share in seconds.",
+  "onboardingCompleteTitle": "You are ready",
+  "onboardingCompleteBody": "That is the full workflow: import, assign, auto-align, fine-tune, export. Everything stays on your device. Questions or feedback? Email 9gaze@atelierkensa.com."
 }

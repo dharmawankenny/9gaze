@@ -21,6 +21,7 @@ import 'package:kensa_9gaze/services/gaze_exporter.dart';
 import 'package:kensa_9gaze/services/image_storage.dart';
 import 'package:kensa_9gaze/services/onboarding/onboarding_step.dart';
 import 'package:showcaseview/showcaseview.dart';
+import 'package:kensa_9gaze/widgets/onboarding/onboarding_complete_dialog.dart';
 import 'package:kensa_9gaze/widgets/onboarding/onboarding_scope.dart';
 import 'package:kensa_9gaze/widgets/onboarding/onboarding_target.dart';
 import 'package:kensa_9gaze/services/text_overlay_layout.dart';
@@ -224,9 +225,9 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
   /// Fetches all slot rows for the current gaze, delegates rendering
   /// to [GazeExporter]. On failure shows a SnackBar; success uses
   /// the bottom button flash state like [SlotEditorScreen] export.
-  Future<void> _handleSaveToGallery() async {
+  Future<bool> _handleSaveToGallery() async {
     final l10n = AppLocalizations.of(context)!;
-    if (_exporting) return;
+    if (_exporting) return false;
     setState(() {
       _exporting = true;
       _exportSuccessFlash = false;
@@ -247,24 +248,25 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
         referenceFrameWidth: _lastOverlayGridWidth,
       );
 
-      if (!mounted) return;
+      if (!mounted) return false;
       if (result.success) {
         setState(() => _exportSuccessFlash = true);
         Future<void>.delayed(const Duration(seconds: 2), () {
           if (!mounted) return;
           setState(() => _exportSuccessFlash = false);
         });
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: Colors.redAccent,
-            content: Text(
-              l10n.exportFailed(result.error ?? ''),
-              style: GoogleFonts.bricolageGrotesque(color: kWhite),
-            ),
-          ),
-        );
+        return true;
       }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.redAccent,
+          content: Text(
+            l10n.exportFailed(result.error ?? ''),
+            style: GoogleFonts.bricolageGrotesque(color: kWhite),
+          ),
+        ),
+      );
+      return false;
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
@@ -646,7 +648,7 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
     OnboardingScope.maybeOf(context)?.startShowcaseForCurrentStep();
   }
 
-  /// Leaves edit mode and pauses the tour before export.
+  /// Leaves edit mode and highlights Export to Gallery.
   void _handleOnboardingExitEdit() {
     final onboarding = OnboardingScope.maybeOf(context);
     if (onboarding?.isActive == true &&
@@ -654,6 +656,35 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
       onboarding.advance(step: OnboardingStep.detailExport);
     }
     _handleToggleEditMode();
+    OnboardingScope.maybeOf(context)?.startShowcaseForCurrentStep();
+  }
+
+  /// True while the tour is waiting for the export tap.
+  bool _isOnboardingExportStep() {
+    final onboarding = OnboardingScope.maybeOf(context);
+    return onboarding?.isActive == true &&
+        onboarding!.currentStep == OnboardingStep.detailExport;
+  }
+
+  /// Exports the grid, then shows the closing dialog.
+  Future<void> _handleOnboardingExport() async {
+    final saved = await _handleSaveToGallery();
+    if (!mounted) return;
+    final onboarding = OnboardingScope.maybeOf(context);
+    if (onboarding == null ||
+        !onboarding.isActive ||
+        onboarding.currentStep != OnboardingStep.detailExport) {
+      return;
+    }
+    if (!saved) {
+      onboarding.startShowcaseForCurrentStep();
+      return;
+    }
+    onboarding.dismissShowcase();
+    onboarding.advance(step: OnboardingStep.complete);
+    await OnboardingCompleteDialog.show(context);
+    if (!mounted) return;
+    await OnboardingScope.maybeOf(context)?.complete();
   }
 
   /// Highlights the header control for the active bulk-edit step.
@@ -1797,62 +1828,73 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
                 child: SizedBox(
                   width: double.infinity,
                   height: 56,
-                  child: ElevatedButton(
-                    onPressed: _exporting ? null : _handleSaveToGallery,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: kAccentBlue,
-                      foregroundColor: kWhite,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(50),
+                  child: OnboardingTarget(
+                    step: OnboardingStep.detailExport,
+                    tooltipPosition: TooltipPosition.top,
+                    targetBorderRadius: BorderRadius.circular(50),
+                    onTargetTap: _handleOnboardingExport,
+                    child: ElevatedButton(
+                      onPressed: _exporting
+                          ? null
+                          : () {
+                              if (_isOnboardingExportStep()) return;
+                              _handleSaveToGallery();
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: kAccentBlue,
+                        foregroundColor: kWhite,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(50),
+                        ),
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
                       ),
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                    ),
-                    child: _exportSuccessFlash && !_exporting
-                        ? Center(
-                            child: Text(
-                              l10n.exportedSuccessfully,
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.bricolageGrotesque(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
-                                color: kWhite,
-                              ),
-                            ),
-                          )
-                        : Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              if (_exporting)
-                                const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: kWhite,
-                                  ),
-                                )
-                              else
-                                const Icon(
-                                  Icons.download_for_offline_outlined,
+                      child: _exportSuccessFlash && !_exporting
+                          ? Center(
+                              child: Text(
+                                l10n.exportedSuccessfully,
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.bricolageGrotesque(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
                                   color: kWhite,
-                                  size: 24,
-                                ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  _exporting
-                                      ? l10n.exporting
-                                      : l10n.saveToGallery,
-                                  style: GoogleFonts.bricolageGrotesque(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w700,
-                                    color: kWhite,
-                                  ),
                                 ),
                               ),
-                            ],
-                          ),
+                            )
+                          : Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                if (_exporting)
+                                  const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: kWhite,
+                                    ),
+                                  )
+                                else
+                                  const Icon(
+                                    Icons.download_for_offline_outlined,
+                                    color: kWhite,
+                                    size: 24,
+                                  ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    _exporting
+                                        ? l10n.exporting
+                                        : l10n.saveToGallery,
+                                    style: GoogleFonts.bricolageGrotesque(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w700,
+                                      color: kWhite,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                    ),
                   ),
                 ),
               ),

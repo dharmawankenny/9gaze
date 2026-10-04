@@ -49,6 +49,7 @@ class OnboardingController extends ChangeNotifier {
   final GlobalKey detailTextCoachKey = GlobalKey();
   final GlobalKey detailTextSaveKey = GlobalKey();
   final GlobalKey detailTextDoneKey = GlobalKey();
+  final GlobalKey detailExportKey = GlobalKey();
 
   OnboardingLaunchMode _launchMode = OnboardingLaunchMode.automatic;
   OnboardingStep? _currentStep;
@@ -149,6 +150,7 @@ class OnboardingController extends ChangeNotifier {
         OnboardingBulkFocus.exit => detailTextDoneKey,
         OnboardingBulkFocus.primary => detailTextAddKey,
       },
+      OnboardingStep.detailExport => detailExportKey,
       _ => null,
     };
   }

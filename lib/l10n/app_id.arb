@@ -118,5 +118,9 @@
   "onboardingDetailPickRearrangeTitle": "Buka susunan",
   "onboardingDetailPickRearrangeBody": "Ketuk Susunan untuk menukar foto antar slot.",
   "onboardingDetailPickTextTitle": "Buka teks",
-  "onboardingDetailPickTextBody": "Ketuk Teks untuk menambah label di grid."
+  "onboardingDetailPickTextBody": "Ketuk Teks untuk menambah label di grid.",
+  "onboardingDetailExportTitle": "Ekspor grid Anda",
+  "onboardingDetailExportBody": "Ketuk Ekspor ke Galeri untuk menyimpan grid 3×3 jadi satu gambar di perpustakaan foto. Siap dibagikan dalam hitungan detik.",
+  "onboardingCompleteTitle": "Anda siap",
+  "onboardingCompleteBody": "Itu alur lengkapnya: impor, tetapkan slot, penjajaran otomatis, sesuaikan, ekspor. Semua tetap di perangkat Anda. Ada pertanyaan? Email 9gaze@atelierkensa.com."
 }

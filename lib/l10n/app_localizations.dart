@@ -811,6 +811,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Tap Texts to add a label on the grid.'**
   String get onboardingDetailPickTextBody;
+
+  /// No description provided for @onboardingDetailExportTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Export your grid'**
+  String get onboardingDetailExportTitle;
+
+  /// No description provided for @onboardingDetailExportBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap Export to Gallery to save the finished 3×3 composed image to your photo library. Ready to share in seconds.'**
+  String get onboardingDetailExportBody;
+
+  /// No description provided for @onboardingCompleteTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'You are ready'**
+  String get onboardingCompleteTitle;
+
+  /// No description provided for @onboardingCompleteBody.
+  ///
+  /// In en, this message translates to:
+  /// **'That is the full workflow: import, assign, auto-align, fine-tune, export. Everything stays on your device. Questions or feedback? Email 9gaze@atelierkensa.com.'**
+  String get onboardingCompleteBody;
 }
 
 class _AppLocalizationsDelegate

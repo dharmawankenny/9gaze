@@ -398,4 +398,18 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get onboardingDetailPickTextBody =>
       'Tap Texts to add a label on the grid.';
+
+  @override
+  String get onboardingDetailExportTitle => 'Export your grid';
+
+  @override
+  String get onboardingDetailExportBody =>
+      'Tap Export to Gallery to save the finished 3×3 composed image to your photo library. Ready to share in seconds.';
+
+  @override
+  String get onboardingCompleteTitle => 'You are ready';
+
+  @override
+  String get onboardingCompleteBody =>
+      'That is the full workflow: import, assign, auto-align, fine-tune, export. Everything stays on your device. Questions or feedback? Email 9gaze@atelierkensa.com.';
 }
