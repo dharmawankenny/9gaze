@@ -18,6 +18,10 @@ class OnboardingTarget extends StatelessWidget {
     required this.step,
     required this.child,
     this.onTargetTap,
+    this.onAdvance,
+    this.isShown,
+    this.forceTapToAdvance = false,
+    this.tooltipPosition,
     this.targetBorderRadius,
     this.targetPadding,
     this.enableAutoScroll = false,
@@ -29,6 +33,18 @@ class OnboardingTarget extends StatelessWidget {
 
   /// Called when the user taps the target on tap-to-advance steps.
   final VoidCallback? onTargetTap;
+
+  /// Replaces the default Next handler for this target.
+  final VoidCallback? onAdvance;
+
+  /// Extra gate when several targets share one step.
+  final bool Function(OnboardingController onboarding)? isShown;
+
+  /// Treats this target as tap-to-advance even if the step is not.
+  final bool forceTapToAdvance;
+
+  /// Overrides the default tooltip side for this target.
+  final TooltipPosition? tooltipPosition;
 
   final BorderRadius? targetBorderRadius;
   final EdgeInsets? targetPadding;
@@ -47,18 +63,30 @@ class OnboardingTarget extends StatelessWidget {
         onboarding.currentStep != step) {
       return child;
     }
+    if (isShown != null && !isShown!(onboarding)) return child;
 
     final l10n = AppLocalizations.of(context)!;
-    final copy = OnboardingStrings.forStep(l10n, step);
-    final tapToAdvance = OnboardingStrings.isTapToAdvance(step);
-    final waitsForAction = OnboardingStrings.waitsForAction(step);
-    final tooltipPosition = OnboardingStrings.tooltipPositionFor(step);
+    final copy = OnboardingStrings.forStep(
+      l10n,
+      step,
+      focus: onboarding.bulkFocus,
+    );
+    final tapToAdvance =
+        forceTapToAdvance || OnboardingStrings.isTapToAdvance(step);
+    final waitsForAction =
+        !forceTapToAdvance && OnboardingStrings.waitsForAction(step);
+    final resolvedTooltipPosition =
+        tooltipPosition ?? OnboardingStrings.tooltipPositionFor(step);
     final key = onboarding.keyFor(step);
     if (key == null) return child;
 
     void handleAdvance() {
       ShowcaseView.get().dismiss();
       onboarding.clearShowcaseSession();
+      if (onAdvance != null) {
+        onAdvance!();
+        return;
+      }
       onboarding.advanceExplainStep();
     }
 
@@ -68,7 +96,7 @@ class OnboardingTarget extends StatelessWidget {
       targetPadding: targetPadding ?? EdgeInsets.zero,
       overlayColor: kBlack,
       overlayOpacity: 0.85,
-      tooltipPosition: tooltipPosition,
+      tooltipPosition: resolvedTooltipPosition,
       disableMovingAnimation: true,
       toolTipSlideEndDistance: 0,
       toolTipMargin: step == OnboardingStep.homeEmptyList ? 20 : 16,

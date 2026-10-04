@@ -102,5 +102,21 @@
   "onboardingSlotToolsTitle": "Alat slot",
   "onboardingSlotToolsBody": "Tengahkan menjalankan penjajaran mata otomatis lagi. Reset menghapus edit manual sesi ini. Ganti mengimpor foto lain untuk slot ini.",
   "onboardingSlotSaveTitle": "Simpan slot ini",
-  "onboardingSlotSaveBody": "Ketuk Simpan untuk kembali ke grid tatapan Anda."
+  "onboardingSlotSaveBody": "Ketuk Simpan untuk kembali ke grid tatapan Anda.",
+  "onboardingDetailEditTitle": "Ubah seluruh grid",
+  "onboardingDetailEditBody": "Ketuk Ubah (kanan atas) untuk menggeser slot, menukar foto, atau menambah teks overlay.",
+  "onboardingDetailEditMenuTitle": "Tiga cara mengubah",
+  "onboardingDetailEditMenuBody": "Posisi menyesuaikan gambar tiap slot. Susunan menukar foto antar slot. Teks menambah label di grid komposit.",
+  "onboardingDetailRepositionTitle": "Posisi",
+  "onboardingDetailRepositionBody": "Sesuaikan bingkai slot mana pun, lalu ketuk Simpan. Undo dan Redo juga tersedia di sini.",
+  "onboardingDetailRearrangeTitle": "Susunan",
+  "onboardingDetailRearrangeBody": "Seret satu slot ke slot lain untuk menukar foto. Ketuk Simpan jika urutannya sudah benar.",
+  "onboardingDetailTextTitle": "Tambah teks",
+  "onboardingDetailTextBody": "Ketuk Tambah Teks, lalu pindahkan, ubah skala, dan gaya label Anda. Ketuk Simpan, lalu keluar dari mode ubah.",
+  "onboardingDetailPickRepositionTitle": "Buka posisi",
+  "onboardingDetailPickRepositionBody": "Ketuk Posisi untuk mengatur foto di tiap slot.",
+  "onboardingDetailPickRearrangeTitle": "Buka susunan",
+  "onboardingDetailPickRearrangeBody": "Ketuk Susunan untuk menukar foto antar slot.",
+  "onboardingDetailPickTextTitle": "Buka teks",
+  "onboardingDetailPickTextBody": "Ketuk Teks untuk menambah label di grid."
 }

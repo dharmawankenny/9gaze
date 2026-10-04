@@ -306,7 +306,7 @@ flowchart TD
 - [x] Phase 2 — Home + create sheet
 - [x] Phase 3 — Gaze detail intro
 - [x] Phase 4 — Photo pick + slot editor
-- [ ] Phase 5 — Bulk edit
+- [x] Phase 5 — Bulk edit
 - [ ] Phase 6 — Export + complete dialog
 
 ---

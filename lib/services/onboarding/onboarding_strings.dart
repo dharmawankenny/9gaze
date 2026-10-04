@@ -12,7 +12,17 @@ class OnboardingStrings {
   OnboardingStrings._();
 
   /// Returns title and body for [step].
-  static OnboardingCopy forStep(AppLocalizations l10n, OnboardingStep step) {
+  ///
+  /// [focus] selects the mode-button copy before a bulk-edit mode opens.
+  static OnboardingCopy forStep(
+    AppLocalizations l10n,
+    OnboardingStep step, {
+    OnboardingBulkFocus focus = OnboardingBulkFocus.primary,
+  }) {
+    if (focus == OnboardingBulkFocus.pickMode) {
+      final pickCopy = _pickModeCopy(l10n, step);
+      if (pickCopy != null) return pickCopy;
+    }
     return switch (step) {
       OnboardingStep.welcome => (
         title: l10n.onboardingWelcomeTitle,
@@ -82,6 +92,26 @@ class OnboardingStrings {
         title: l10n.onboardingSlotSaveTitle,
         body: l10n.onboardingSlotSaveBody,
       ),
+      OnboardingStep.detailBulkEditButton => (
+        title: l10n.onboardingDetailEditTitle,
+        body: l10n.onboardingDetailEditBody,
+      ),
+      OnboardingStep.detailEditMenu => (
+        title: l10n.onboardingDetailEditMenuTitle,
+        body: l10n.onboardingDetailEditMenuBody,
+      ),
+      OnboardingStep.detailReposition => (
+        title: l10n.onboardingDetailRepositionTitle,
+        body: l10n.onboardingDetailRepositionBody,
+      ),
+      OnboardingStep.detailRearrange => (
+        title: l10n.onboardingDetailRearrangeTitle,
+        body: l10n.onboardingDetailRearrangeBody,
+      ),
+      OnboardingStep.detailText => (
+        title: l10n.onboardingDetailTextTitle,
+        body: l10n.onboardingDetailTextBody,
+      ),
       _ => (title: l10n.appTitle, body: ''),
     };
   }
@@ -96,7 +126,8 @@ class OnboardingStrings {
       OnboardingStep.createSubmit ||
       OnboardingStep.detailPickSlot ||
       OnboardingStep.detailTapFilledSlot ||
-      OnboardingStep.slotEditorSave => true,
+      OnboardingStep.slotEditorSave ||
+      OnboardingStep.detailBulkEditButton => true,
       _ => false,
     };
   }
@@ -105,8 +136,32 @@ class OnboardingStrings {
   static bool waitsForAction(OnboardingStep step) {
     return switch (step) {
       OnboardingStep.slotEditorGestures ||
-      OnboardingStep.slotEditorUndoRedo => true,
+      OnboardingStep.slotEditorUndoRedo ||
+      OnboardingStep.detailReposition ||
+      OnboardingStep.detailRearrange => true,
       _ => false,
+    };
+  }
+
+  /// Copy for the mode button, before that edit mode is open.
+  static OnboardingCopy? _pickModeCopy(
+    AppLocalizations l10n,
+    OnboardingStep step,
+  ) {
+    return switch (step) {
+      OnboardingStep.detailReposition => (
+        title: l10n.onboardingDetailPickRepositionTitle,
+        body: l10n.onboardingDetailPickRepositionBody,
+      ),
+      OnboardingStep.detailRearrange => (
+        title: l10n.onboardingDetailPickRearrangeTitle,
+        body: l10n.onboardingDetailPickRearrangeBody,
+      ),
+      OnboardingStep.detailText => (
+        title: l10n.onboardingDetailPickTextTitle,
+        body: l10n.onboardingDetailPickTextBody,
+      ),
+      _ => null,
     };
   }
 
@@ -128,7 +183,12 @@ class OnboardingStrings {
       OnboardingStep.slotEditorUndoRedo ||
       OnboardingStep.slotEditorTools => TooltipPosition.top,
       OnboardingStep.detailTapFilledSlot ||
-      OnboardingStep.slotEditorSave => TooltipPosition.bottom,
+      OnboardingStep.slotEditorSave ||
+      OnboardingStep.detailBulkEditButton ||
+      OnboardingStep.detailReposition ||
+      OnboardingStep.detailRearrange => TooltipPosition.bottom,
+      OnboardingStep.detailEditMenu ||
+      OnboardingStep.detailText => TooltipPosition.top,
       _ => null,
     };
   }

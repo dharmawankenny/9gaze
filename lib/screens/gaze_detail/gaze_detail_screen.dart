@@ -20,6 +20,7 @@ import 'package:kensa_9gaze/screens/gaze_detail/widgets/gaze_direction_grid.dart
 import 'package:kensa_9gaze/services/gaze_exporter.dart';
 import 'package:kensa_9gaze/services/image_storage.dart';
 import 'package:kensa_9gaze/services/onboarding/onboarding_step.dart';
+import 'package:showcaseview/showcaseview.dart';
 import 'package:kensa_9gaze/widgets/onboarding/onboarding_scope.dart';
 import 'package:kensa_9gaze/widgets/onboarding/onboarding_target.dart';
 import 'package:kensa_9gaze/services/text_overlay_layout.dart';
@@ -70,6 +71,9 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
 
   /// Guard against concurrent save-edits calls.
   bool _savingEdits = false;
+
+  /// Keeps unsaved swaps when a tour tooltip wraps the grid.
+  final GlobalKey _gridKey = GlobalKey();
 
   /// Callback set by the grid to let this screen trigger commitEdits.
   VoidCallback? _commitEdits;
@@ -289,6 +293,7 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
   Future<void> _handleToggleEditMode() async {
     if (_savingEdits) return;
     if (_isAnyEditMode) {
+      final rewindTour = _isMidBulkEditTour();
       setState(() {
         _editStage = _EditStage.none;
         _overlayDrafts = [];
@@ -302,6 +307,7 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
         _pendingSlotChanges = {};
         _pendingRepositionChanges = {};
       });
+      if (rewindTour) _rewindBulkTourToEditButton();
       return;
     }
     final rows = await _overlayRepo.getForGaze(_current.id);
@@ -336,6 +342,369 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
     });
   }
 
+  /// True while the tour is inside edit mode, before the Done step.
+  bool _isMidBulkEditTour() {
+    final onboarding = OnboardingScope.maybeOf(context);
+    if (onboarding?.isActive != true) return false;
+    final step = onboarding!.currentStep;
+    if (step == OnboardingStep.detailEditMenu ||
+        step == OnboardingStep.detailReposition ||
+        step == OnboardingStep.detailRearrange) {
+      return true;
+    }
+    return step == OnboardingStep.detailText &&
+        onboarding.bulkFocus != OnboardingBulkFocus.exit;
+  }
+
+  /// True while the tour is waiting for the Done tap.
+  bool _isOnboardingTextExit() {
+    final onboarding = OnboardingScope.maybeOf(context);
+    return onboarding?.isActive == true &&
+        onboarding!.currentStep == OnboardingStep.detailText &&
+        onboarding.bulkFocus == OnboardingBulkFocus.exit;
+  }
+
+  /// True while the tour is waiting for the Add Text tap.
+  bool _isOnboardingTextAdd() {
+    final onboarding = OnboardingScope.maybeOf(context);
+    return onboarding?.isActive == true &&
+        onboarding!.currentStep == OnboardingStep.detailText &&
+        onboarding.bulkFocus == OnboardingBulkFocus.primary;
+  }
+
+  /// True when the header action must run from the showcase tap.
+  bool _tourOwnsHeaderAction() {
+    final onboarding = OnboardingScope.maybeOf(context);
+    if (onboarding?.isActive != true) return false;
+    final step = onboarding!.currentStep;
+    if (!_isAnyEditMode && step == OnboardingStep.detailBulkEditButton) {
+      return true;
+    }
+    if (onboarding.bulkFocus != OnboardingBulkFocus.save) return false;
+    if (_isRepositionMode && step == OnboardingStep.detailReposition) {
+      return true;
+    }
+    if (_isRearrangeMode && step == OnboardingStep.detailRearrange) {
+      return true;
+    }
+    return _isTextMode && step == OnboardingStep.detailText;
+  }
+
+  /// Sends a cancelled bulk-edit step back to its first highlight.
+  void _rewindBulkTourToEditButton() {
+    final onboarding = OnboardingScope.maybeOf(context);
+    if (onboarding == null || !onboarding.isActive) return;
+    onboarding.dismissShowcase();
+    onboarding.advance(step: OnboardingStep.detailBulkEditButton);
+    onboarding.startShowcaseForCurrentStep();
+  }
+
+  /// Re-opens the mode the user just cancelled so the tour can continue.
+  void _restoreBulkEditModeAfterCancel(OnboardingStep step) {
+    final onboarding = OnboardingScope.maybeOf(context);
+    if (onboarding?.isActive != true || onboarding!.currentStep != step) {
+      return;
+    }
+    onboarding.dismissShowcase();
+    onboarding.setBulkFocus(OnboardingBulkFocus.primary);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (OnboardingScope.maybeOf(context)?.currentStep != step) return;
+      if (step == OnboardingStep.detailReposition) {
+        _handleEnterRepositionMode();
+      } else if (step == OnboardingStep.detailRearrange) {
+        _handleEnterRearrangeMode();
+      } else if (step == OnboardingStep.detailText) {
+        _handleEnterTextMode();
+      }
+      OnboardingScope.maybeOf(context)?.startShowcaseForCurrentStep();
+    });
+  }
+
+  /// Runs [action] after the current frame when called during build.
+  void _deferCoach(VoidCallback action) {
+    final phase = SchedulerBinding.instance.schedulerPhase;
+    if (phase == SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        action();
+      });
+      return;
+    }
+    action();
+  }
+
+  /// True when [step] matches the edit mode currently on screen.
+  bool _isInBulkStepMode(OnboardingStep step) {
+    return switch (step) {
+      OnboardingStep.detailReposition => _isRepositionMode,
+      OnboardingStep.detailRearrange => _isRearrangeMode,
+      OnboardingStep.detailText => _isTextMode,
+      _ => false,
+    };
+  }
+
+  /// Drops the save highlight when the pending edit is cleared.
+  void _revertBulkSaveHighlight(OnboardingStep step) {
+    final onboarding = OnboardingScope.maybeOf(context);
+    if (onboarding?.isActive != true || onboarding!.currentStep != step) {
+      return;
+    }
+    if (!_isInBulkStepMode(step)) return;
+    if (onboarding.bulkFocus != OnboardingBulkFocus.save) return;
+    onboarding.dismissShowcase();
+    onboarding.setBulkFocus(OnboardingBulkFocus.primary);
+    onboarding.startShowcaseForCurrentStep();
+  }
+
+  /// Moves the rearrange tip to Save after a real swap.
+  void _syncRearrangeCoach(Map<int, String> changes) {
+    final onboarding = OnboardingScope.maybeOf(context);
+    if (onboarding?.isActive != true ||
+        onboarding!.currentStep != OnboardingStep.detailRearrange) {
+      return;
+    }
+    if (changes.isEmpty) {
+      _revertBulkSaveHighlight(OnboardingStep.detailRearrange);
+      return;
+    }
+    if (onboarding.bulkFocus != OnboardingBulkFocus.primary) return;
+    onboarding.dismissShowcase();
+    onboarding.setBulkFocus(OnboardingBulkFocus.save);
+    onboarding.startShowcaseForCurrentStep();
+  }
+
+  /// Moves the reposition tip to Save after a gesture lands.
+  void _promoteRepositionCoachToSave() {
+    if (!_isRepositionMode || _pendingRepositionChanges.isEmpty) return;
+    final onboarding = OnboardingScope.maybeOf(context);
+    if (onboarding?.isActive != true ||
+        onboarding!.currentStep != OnboardingStep.detailReposition ||
+        onboarding.bulkFocus != OnboardingBulkFocus.primary) {
+      return;
+    }
+    onboarding.dismissShowcase();
+    onboarding.setBulkFocus(OnboardingBulkFocus.save);
+    onboarding.startShowcaseForCurrentStep();
+  }
+
+  /// Header Edit or Save, unless the tour handles that tap itself.
+  void _handleHeaderActionTap() {
+    if (_tourOwnsHeaderAction()) return;
+    if (_isAnyEditMode) {
+      if (!_canSaveCurrentEditStage) return;
+      if (_isRepositionMode) {
+        _handleSaveRepositionMode();
+      } else if (_isRearrangeMode) {
+        _handleSaveRearrangeMode();
+      } else {
+        _handleSaveTextMode();
+      }
+      return;
+    }
+    _handleToggleEditMode();
+  }
+
+  /// Opens the edit menu and shows the three-mode tip.
+  Future<void> _handleOnboardingOpenEdit() async {
+    final onboarding = OnboardingScope.maybeOf(context);
+    if (onboarding?.isActive == true &&
+        onboarding!.currentStep == OnboardingStep.detailBulkEditButton) {
+      onboarding.advance(step: OnboardingStep.detailEditMenu);
+    }
+    await _handleToggleEditMode();
+    if (!mounted) return;
+    OnboardingScope.maybeOf(context)?.startShowcaseForCurrentStep();
+  }
+
+  /// True while a mode button tap must come from the showcase.
+  bool _tourOwnsModeButton() {
+    final onboarding = OnboardingScope.maybeOf(context);
+    if (onboarding?.isActive != true) return false;
+    final step = onboarding!.currentStep;
+    if (step == OnboardingStep.detailEditMenu) return true;
+    if (onboarding.bulkFocus != OnboardingBulkFocus.pickMode) return false;
+    return step == OnboardingStep.detailReposition ||
+        step == OnboardingStep.detailRearrange ||
+        step == OnboardingStep.detailText;
+  }
+
+  /// Leaves the three-mode tip and highlights Reposition.
+  void _handleOnboardingEnterReposition() {
+    final onboarding = OnboardingScope.maybeOf(context);
+    if (onboarding == null || !onboarding.isActive) return;
+    onboarding.advance(step: OnboardingStep.detailReposition);
+    onboarding.setBulkFocus(OnboardingBulkFocus.pickMode);
+    onboarding.startShowcaseForCurrentStep();
+  }
+
+  /// Opens reposition after the tour highlights that button.
+  void _handleOnboardingOpenReposition() {
+    final onboarding = OnboardingScope.maybeOf(context);
+    if (onboarding?.isActive == true &&
+        onboarding!.currentStep == OnboardingStep.detailReposition) {
+      onboarding.dismissShowcase();
+      onboarding.setBulkFocus(OnboardingBulkFocus.primary);
+    }
+    _handleEnterRepositionMode();
+    onboarding?.startShowcaseForCurrentStep();
+  }
+
+  /// Opens rearrange after the tour highlights that button.
+  void _handleOnboardingOpenRearrange() {
+    final onboarding = OnboardingScope.maybeOf(context);
+    if (onboarding?.isActive == true &&
+        onboarding!.currentStep == OnboardingStep.detailRearrange) {
+      onboarding.dismissShowcase();
+      onboarding.setBulkFocus(OnboardingBulkFocus.primary);
+    }
+    _handleEnterRearrangeMode();
+    onboarding?.startShowcaseForCurrentStep();
+  }
+
+  /// Opens text mode after the tour highlights that button.
+  void _handleOnboardingOpenText() {
+    final onboarding = OnboardingScope.maybeOf(context);
+    if (onboarding?.isActive == true &&
+        onboarding!.currentStep == OnboardingStep.detailText) {
+      onboarding.dismissShowcase();
+      onboarding.setBulkFocus(OnboardingBulkFocus.primary);
+    }
+    _handleEnterTextMode();
+    onboarding?.startShowcaseForCurrentStep();
+  }
+
+  /// Highlights the next mode button once the menu is on screen again.
+  void _showBulkModePick(OnboardingStep step) {
+    final onboarding = OnboardingScope.maybeOf(context);
+    if (onboarding == null || !onboarding.isActive) return;
+    if (onboarding.currentStep != step) {
+      onboarding.advance(step: step);
+    }
+    onboarding.setBulkFocus(OnboardingBulkFocus.pickMode);
+    onboarding.startShowcaseForCurrentStep();
+  }
+
+  /// Saves reposition edits, then highlights Rearrange.
+  Future<void> _handleOnboardingSaveReposition() async {
+    final onboarding = OnboardingScope.maybeOf(context);
+    if (onboarding?.isActive == true &&
+        onboarding!.currentStep == OnboardingStep.detailReposition) {
+      onboarding.advance(step: OnboardingStep.detailRearrange);
+      onboarding.setBulkFocus(OnboardingBulkFocus.pickMode);
+    }
+    await _handleSaveRepositionMode();
+    if (!mounted) return;
+    _showBulkModePick(OnboardingStep.detailRearrange);
+  }
+
+  /// Saves the swap, then highlights Texts.
+  Future<void> _handleOnboardingSaveRearrange() async {
+    final onboarding = OnboardingScope.maybeOf(context);
+    if (onboarding?.isActive == true &&
+        onboarding!.currentStep == OnboardingStep.detailRearrange) {
+      onboarding.advance(step: OnboardingStep.detailText);
+      onboarding.setBulkFocus(OnboardingBulkFocus.pickMode);
+    }
+    await _handleSaveRearrangeMode();
+    if (!mounted) return;
+    _showBulkModePick(OnboardingStep.detailText);
+  }
+
+  /// Adds a label, then explains how to place it.
+  void _handleOnboardingAddText() {
+    _handleAddOverlay();
+    final onboarding = OnboardingScope.maybeOf(context);
+    if (onboarding == null || !onboarding.isActive) return;
+    onboarding.dismissShowcase();
+    onboarding.setBulkFocus(OnboardingBulkFocus.coach);
+    onboarding.startShowcaseForCurrentStep();
+  }
+
+  /// Moves the text tip from the panel onto Save.
+  void _handleOnboardingTextReadyToSave() {
+    final onboarding = OnboardingScope.maybeOf(context);
+    if (onboarding == null || !onboarding.isActive) return;
+    if (!_hasTextDraftChanges) {
+      onboarding.startShowcaseForCurrentStep();
+      return;
+    }
+    onboarding.setBulkFocus(OnboardingBulkFocus.save);
+    onboarding.startShowcaseForCurrentStep();
+  }
+
+  /// Saves the label, then highlights Done.
+  Future<void> _handleOnboardingSaveText() async {
+    final onboarding = OnboardingScope.maybeOf(context);
+    if (onboarding?.isActive == true &&
+        onboarding!.currentStep == OnboardingStep.detailText) {
+      onboarding.dismissShowcase();
+      onboarding.setBulkFocus(OnboardingBulkFocus.exit);
+    }
+    await _handleSaveTextMode();
+    if (!mounted) return;
+    OnboardingScope.maybeOf(context)?.startShowcaseForCurrentStep();
+  }
+
+  /// Leaves edit mode and pauses the tour before export.
+  void _handleOnboardingExitEdit() {
+    final onboarding = OnboardingScope.maybeOf(context);
+    if (onboarding?.isActive == true &&
+        onboarding!.currentStep == OnboardingStep.detailText) {
+      onboarding.advance(step: OnboardingStep.detailExport);
+    }
+    _handleToggleEditMode();
+  }
+
+  /// Highlights the header control for the active bulk-edit step.
+  Widget _wrapHeaderActionForTour(Widget child) {
+    if (!_isAnyEditMode) {
+      return OnboardingTarget(
+        step: OnboardingStep.detailBulkEditButton,
+        targetBorderRadius: BorderRadius.circular(20),
+        enableAutoScroll: true,
+        scrollAlignment: 0.15,
+        onTargetTap: _handleOnboardingOpenEdit,
+        child: child,
+      );
+    }
+    if (_isRepositionMode) {
+      return OnboardingTarget(
+        step: OnboardingStep.detailReposition,
+        isShown: (onboarding) =>
+            onboarding.bulkFocus == OnboardingBulkFocus.save,
+        forceTapToAdvance: true,
+        targetBorderRadius: BorderRadius.circular(20),
+        onTargetTap: _handleOnboardingSaveReposition,
+        child: child,
+      );
+    }
+    if (_isRearrangeMode) {
+      return OnboardingTarget(
+        step: OnboardingStep.detailRearrange,
+        isShown: (onboarding) =>
+            onboarding.bulkFocus == OnboardingBulkFocus.save,
+        forceTapToAdvance: true,
+        targetBorderRadius: BorderRadius.circular(20),
+        onTargetTap: _handleOnboardingSaveRearrange,
+        child: child,
+      );
+    }
+    if (_isTextMode) {
+      return OnboardingTarget(
+        step: OnboardingStep.detailText,
+        isShown: (onboarding) =>
+            onboarding.bulkFocus == OnboardingBulkFocus.save,
+        forceTapToAdvance: true,
+        tooltipPosition: TooltipPosition.bottom,
+        targetBorderRadius: BorderRadius.circular(20),
+        onTargetTap: _handleOnboardingSaveText,
+        child: child,
+      );
+    }
+    return child;
+  }
+
   void _captureRepositionChanges(Map<int, SlotTransformPatch> updates) {
     _pendingRepositionChanges = updates;
   }
@@ -354,7 +723,13 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
   }
 
   void _capturePendingRepositionChanges(Map<int, SlotTransformPatch> updates) {
-    _setStateSafely(() => _pendingRepositionChanges = updates);
+    _pendingRepositionChanges = updates;
+    _setStateSafely(() {});
+    if (updates.isEmpty) {
+      _deferCoach(
+        () => _revertBulkSaveHighlight(OnboardingStep.detailReposition),
+      );
+    }
   }
 
   void _handleEnterRepositionMode() {
@@ -375,6 +750,7 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
       _canRedoReposition = false;
       _editStage = _EditStage.menu;
     });
+    _restoreBulkEditModeAfterCancel(OnboardingStep.detailReposition);
   }
 
   Future<void> _handleSaveRepositionMode() async {
@@ -586,6 +962,7 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
       _canRedoRearrange = false;
       _editStage = _EditStage.menu;
     });
+    _restoreBulkEditModeAfterCancel(OnboardingStep.detailRearrange);
   }
 
   Future<void> _handleSaveRearrangeMode() async {
@@ -637,6 +1014,7 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
       _editStage = _EditStage.menu;
     });
     _syncTextInputController();
+    _restoreBulkEditModeAfterCancel(OnboardingStep.detailText);
   }
 
   void _captureSlotEditChanges(Map<int, String> changes) {
@@ -644,7 +1022,9 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
   }
 
   void _capturePendingReorderChanges(Map<int, String> changes) {
-    _setStateSafely(() => _pendingSlotChanges = changes);
+    _pendingSlotChanges = changes;
+    _setStateSafely(() {});
+    _deferCoach(() => _syncRearrangeCoach(changes));
   }
 
   Future<void> _handleSaveTextMode() async {
@@ -1040,163 +1420,185 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
     _syncTextInputController();
     final screenH = MediaQuery.of(context).size.height;
     final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
-    return SafeArea(
-      top: false,
-      child: Padding(
-        // Lift panel above keyboard.
-        padding: EdgeInsets.only(bottom: keyboardInset),
-        child: Container(
-          margin: const EdgeInsets.all(12),
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-          decoration: BoxDecoration(
-            color: kDarkBlue,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              // Hard cap prevents RenderFlex overflow on small heights.
-              maxHeight: screenH * 0.4,
+    return OnboardingTarget(
+      step: OnboardingStep.detailText,
+      isShown: (onboarding) =>
+          onboarding.bulkFocus == OnboardingBulkFocus.coach,
+      tooltipPosition: TooltipPosition.top,
+      targetBorderRadius: BorderRadius.circular(14),
+      onAdvance: _handleOnboardingTextReadyToSave,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          // Lift panel above keyboard.
+          padding: EdgeInsets.only(bottom: keyboardInset),
+          child: Container(
+            margin: const EdgeInsets.all(12),
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            decoration: BoxDecoration(
+              color: kDarkBlue,
+              borderRadius: BorderRadius.circular(14),
             ),
-            child: ListView(
-              shrinkWrap: true,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: (_savingEdits || !_canUndoText)
-                            ? null
-                            : _undoText,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: kWhite.withValues(alpha: 0.8),
-                          side: BorderSide(
-                            color: kWhite.withValues(alpha: 0.15),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                // Hard cap prevents RenderFlex overflow on small heights.
+                maxHeight: screenH * 0.4,
+              ),
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: (_savingEdits || !_canUndoText)
+                              ? null
+                              : _undoText,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: kWhite.withValues(alpha: 0.8),
+                            side: BorderSide(
+                              color: kWhite.withValues(alpha: 0.15),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
                           ),
-                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          icon: const Icon(Icons.undo, size: 16),
+                          label: Text(l10n.undo),
                         ),
-                        icon: const Icon(Icons.undo, size: 16),
-                        label: Text(l10n.undo),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: (_savingEdits || !_canRedoText)
+                              ? null
+                              : _redoText,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: kWhite.withValues(alpha: 0.8),
+                            side: BorderSide(
+                              color: kWhite.withValues(alpha: 0.15),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                          ),
+                          icon: const Icon(Icons.redo, size: 16),
+                          label: Text(l10n.redo),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      OnboardingTarget(
+                        step: OnboardingStep.detailText,
+                        isShown: (onboarding) =>
+                            onboarding.bulkFocus == OnboardingBulkFocus.primary,
+                        forceTapToAdvance: true,
+                        tooltipPosition: TooltipPosition.top,
+                        targetBorderRadius: BorderRadius.circular(12),
+                        onTargetTap: _handleOnboardingAddText,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            if (_isOnboardingTextAdd()) return;
+                            _handleAddOverlay();
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: kDarkBlue,
+                            foregroundColor: kWhite,
+                            side: BorderSide(
+                              color: kWhite.withValues(alpha: 0.2),
+                            ),
+                          ),
+                          icon: const Icon(Icons.add, size: 16),
+                          label: Text(l10n.addText),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      if (selected != null)
+                        ElevatedButton.icon(
+                          onPressed: _handleDeleteOverlay,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: kDarkBlue,
+                            foregroundColor: kWhite,
+                            side: BorderSide(
+                              color: kWhite.withValues(alpha: 0.2),
+                            ),
+                          ),
+                          icon: const Icon(Icons.delete_outline, size: 16),
+                          label: Text(l10n.delete),
+                        ),
+                    ],
+                  ),
+                  if (selected != null) ...[
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      key: ValueKey(selected.localId),
+                      controller: _textInputController,
+                      onChanged: (v) {
+                        if (_isSyncingTextInput) return;
+                        final current = _selectedOverlay;
+                        if (current == null) return;
+                        _textTypingStart ??= _captureTextSnapshot();
+                        current.text = v;
+                        setState(() {});
+                        _scheduleTextInputHistoryPush();
+                      },
+                      style: GoogleFonts.bricolageGrotesque(color: kWhite),
+                      keyboardType: TextInputType.multiline,
+                      textInputAction: TextInputAction.newline,
+                      minLines: 3,
+                      maxLines: null,
+                      decoration: InputDecoration(
+                        hintText: l10n.overlayTextHint,
+                        isDense: true,
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: (_savingEdits || !_canRedoText)
-                            ? null
-                            : _redoText,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: kWhite.withValues(alpha: 0.8),
-                          side: BorderSide(
-                            color: kWhite.withValues(alpha: 0.15),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                        ),
-                        icon: const Icon(Icons.redo, size: 16),
-                        label: Text(l10n.redo),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      children: textSwatches
+                          .map(
+                            (c) => _SwatchDot(
+                              color: Color(c),
+                              selected: selected.textColor == c,
+                              onTap: () {
+                                final before = _captureTextSnapshot();
+                                selected.textColor = c;
+                                setState(() {});
+                                _pushTextHistoryIfChanged(before);
+                              },
+                            ),
+                          )
+                          .toList(),
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 6,
+                      children: bgSwatches
+                          .map(
+                            (c) => _SwatchDot(
+                              color: c == null ? Colors.transparent : Color(c),
+                              showBorder: true,
+                              selected: selected.bgColor == c,
+                              onTap: () {
+                                final before = _captureTextSnapshot();
+                                selected.bgColor = c;
+                                setState(() {});
+                                _pushTextHistoryIfChanged(before);
+                              },
+                            ),
+                          )
+                          .toList(),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      l10n.dragMovePinchScale,
+                      style: GoogleFonts.bricolageGrotesque(
+                        color: kWhite.withValues(alpha: 0.6),
+                        fontSize: 12,
                       ),
                     ),
                   ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    ElevatedButton.icon(
-                      onPressed: _handleAddOverlay,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: kDarkBlue,
-                        foregroundColor: kWhite,
-                        side: BorderSide(color: kWhite.withValues(alpha: 0.2)),
-                      ),
-                      icon: const Icon(Icons.add, size: 16),
-                      label: Text(l10n.addText),
-                    ),
-                    const SizedBox(width: 8),
-                    if (selected != null)
-                      ElevatedButton.icon(
-                        onPressed: _handleDeleteOverlay,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: kDarkBlue,
-                          foregroundColor: kWhite,
-                          side: BorderSide(
-                            color: kWhite.withValues(alpha: 0.2),
-                          ),
-                        ),
-                        icon: const Icon(Icons.delete_outline, size: 16),
-                        label: Text(l10n.delete),
-                      ),
-                  ],
-                ),
-                if (selected != null) ...[
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    key: ValueKey(selected.localId),
-                    controller: _textInputController,
-                    onChanged: (v) {
-                      if (_isSyncingTextInput) return;
-                      final current = _selectedOverlay;
-                      if (current == null) return;
-                      _textTypingStart ??= _captureTextSnapshot();
-                      current.text = v;
-                      setState(() {});
-                      _scheduleTextInputHistoryPush();
-                    },
-                    style: GoogleFonts.bricolageGrotesque(color: kWhite),
-                    keyboardType: TextInputType.multiline,
-                    textInputAction: TextInputAction.newline,
-                    minLines: 3,
-                    maxLines: null,
-                    decoration: InputDecoration(
-                      hintText: l10n.overlayTextHint,
-                      isDense: true,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 6,
-                    children: textSwatches
-                        .map(
-                          (c) => _SwatchDot(
-                            color: Color(c),
-                            selected: selected.textColor == c,
-                            onTap: () {
-                              final before = _captureTextSnapshot();
-                              selected.textColor = c;
-                              setState(() {});
-                              _pushTextHistoryIfChanged(before);
-                            },
-                          ),
-                        )
-                        .toList(),
-                  ),
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 6,
-                    children: bgSwatches
-                        .map(
-                          (c) => _SwatchDot(
-                            color: c == null ? Colors.transparent : Color(c),
-                            showBorder: true,
-                            selected: selected.bgColor == c,
-                            onTap: () {
-                              final before = _captureTextSnapshot();
-                              selected.bgColor = c;
-                              setState(() {});
-                              _pushTextHistoryIfChanged(before);
-                            },
-                          ),
-                        )
-                        .toList(),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    l10n.dragMovePinchScale,
-                    style: GoogleFonts.bricolageGrotesque(
-                      color: kWhite.withValues(alpha: 0.6),
-                      fontSize: 12,
-                    ),
-                  ),
                 ],
-              ],
+              ),
             ),
           ),
         ),
@@ -1204,50 +1606,79 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
     );
   }
 
+  /// One edit-menu action, with a tour highlight when it is next.
+  Widget _buildTourModeButton({
+    required String label,
+    required OnboardingStep step,
+    required VoidCallback onEnter,
+    required VoidCallback onTourTap,
+  }) {
+    return OnboardingTarget(
+      step: step,
+      isShown: (onboarding) =>
+          onboarding.bulkFocus == OnboardingBulkFocus.pickMode,
+      forceTapToAdvance: true,
+      tooltipPosition: TooltipPosition.top,
+      targetBorderRadius: BorderRadius.circular(12),
+      onTargetTap: onTourTap,
+      child: OutlinedButton(
+        onPressed: _savingEdits
+            ? null
+            : () {
+                if (_tourOwnsModeButton()) return;
+                onEnter();
+              },
+        style: OutlinedButton.styleFrom(
+          foregroundColor: kWhite.withValues(alpha: 0.8),
+          side: BorderSide(color: kWhite.withValues(alpha: 0.15)),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+        ),
+        child: Text(label),
+      ),
+    );
+  }
+
   Widget _buildEditMenuBottomBar() {
     final l10n = AppLocalizations.of(context)!;
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-        child: Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: _savingEdits ? null : _handleEnterRepositionMode,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: kWhite.withValues(alpha: 0.8),
-                  side: BorderSide(color: kWhite.withValues(alpha: 0.15)),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+    return OnboardingTarget(
+      step: OnboardingStep.detailEditMenu,
+      tooltipPosition: TooltipPosition.top,
+      targetBorderRadius: BorderRadius.circular(12),
+      onAdvance: _handleOnboardingEnterReposition,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          child: Row(
+            children: [
+              Expanded(
+                child: _buildTourModeButton(
+                  label: l10n.reposition,
+                  step: OnboardingStep.detailReposition,
+                  onEnter: _handleEnterRepositionMode,
+                  onTourTap: _handleOnboardingOpenReposition,
                 ),
-                child: Text(l10n.reposition),
               ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: OutlinedButton(
-                onPressed: _savingEdits ? null : _handleEnterRearrangeMode,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: kWhite.withValues(alpha: 0.8),
-                  side: BorderSide(color: kWhite.withValues(alpha: 0.15)),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildTourModeButton(
+                  label: l10n.rearrange,
+                  step: OnboardingStep.detailRearrange,
+                  onEnter: _handleEnterRearrangeMode,
+                  onTourTap: _handleOnboardingOpenRearrange,
                 ),
-                child: Text(l10n.rearrange),
               ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: OutlinedButton(
-                onPressed: _savingEdits ? null : _handleEnterTextMode,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: kWhite.withValues(alpha: 0.8),
-                  side: BorderSide(color: kWhite.withValues(alpha: 0.15)),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildTourModeButton(
+                  label: l10n.texts,
+                  step: OnboardingStep.detailText,
+                  onEnter: _handleEnterTextMode,
+                  onTourTap: _handleOnboardingOpenText,
                 ),
-                child: Text(l10n.texts),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1480,61 +1911,72 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
                               ),
                             )
                           : _isEditMenuMode
-                          ? TextButton(
-                              onPressed: _handleToggleEditMode,
-                              style: TextButton.styleFrom(
-                                backgroundColor: kWhite.withValues(alpha: 0.08),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 8,
+                          ? OnboardingTarget(
+                              step: OnboardingStep.detailText,
+                              isShown: (onboarding) =>
+                                  onboarding.bulkFocus ==
+                                  OnboardingBulkFocus.exit,
+                              forceTapToAdvance: true,
+                              tooltipPosition: TooltipPosition.bottom,
+                              targetBorderRadius: BorderRadius.circular(20),
+                              onTargetTap: _handleOnboardingExitEdit,
+                              child: TextButton(
+                                onPressed: () {
+                                  if (_isOnboardingTextExit()) return;
+                                  _handleToggleEditMode();
+                                },
+                                style: TextButton.styleFrom(
+                                  backgroundColor: kWhite.withValues(
+                                    alpha: 0.08,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 8,
+                                  ),
+                                  minimumSize: Size.zero,
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
                                 ),
-                                minimumSize: Size.zero,
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                              ),
-                              child: Text(
-                                l10n.done,
-                                style: GoogleFonts.bricolageGrotesque(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: kWhite,
+                                child: Text(
+                                  l10n.done,
+                                  style: GoogleFonts.bricolageGrotesque(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: kWhite,
+                                  ),
                                 ),
                               ),
                             )
-                          : TextButton(
-                              onPressed: _isAnyEditMode
-                                  ? (_canSaveCurrentEditStage
-                                        ? (_isRepositionMode
-                                              ? _handleSaveRepositionMode
-                                              : _isRearrangeMode
-                                              ? _handleSaveRearrangeMode
-                                              : _handleSaveTextMode)
-                                        : null)
-                                  : _handleToggleEditMode,
-                              style: TextButton.styleFrom(
-                                backgroundColor: _isAnyEditMode
-                                    ? (_canSaveCurrentEditStage
-                                          ? kAccentBlue
-                                          : kWhite.withValues(alpha: 0.08))
-                                    : kWhite.withValues(alpha: 0.08),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 8,
+                          : _wrapHeaderActionForTour(
+                              TextButton(
+                                onPressed: _handleHeaderActionTap,
+                                style: TextButton.styleFrom(
+                                  backgroundColor: _isAnyEditMode
+                                      ? (_canSaveCurrentEditStage
+                                            ? kAccentBlue
+                                            : kWhite.withValues(alpha: 0.08))
+                                      : kWhite.withValues(alpha: 0.08),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 8,
+                                  ),
+                                  minimumSize: Size.zero,
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
                                 ),
-                                minimumSize: Size.zero,
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                              ),
-                              child: Text(
-                                _isAnyEditMode ? l10n.save : l10n.edit,
-                                style: GoogleFonts.bricolageGrotesque(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: kWhite,
+                                child: Text(
+                                  _isAnyEditMode ? l10n.save : l10n.edit,
+                                  style: GoogleFonts.bricolageGrotesque(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: kWhite,
+                                  ),
                                 ),
                               ),
                             ),
@@ -1576,41 +2018,56 @@ class _GazeDetailScreenState extends State<GazeDetailScreen> {
 
               // ── 3×3 gaze direction grid ───────────────────────
               OnboardingTarget(
-                step: OnboardingStep.detailSlotsGrid,
+                step: OnboardingStep.detailRearrange,
+                isShown: (onboarding) =>
+                    onboarding.bulkFocus == OnboardingBulkFocus.primary,
                 targetBorderRadius: BorderRadius.circular(8),
-                child: GazeDirectionGrid(
-                  gazeId: _current.id,
-                  gazeExportName: _current.name,
-                  isDoublePrimary: _dualPrimary,
-                  isCompact: _compactMode,
-                  isEditMode: _isRearrangeMode,
-                  isRepositionMode: _isRepositionMode,
-                  isCellTapEnabled: !_isAnyEditMode,
-                  onDoublePrimaryEnabled: () =>
-                      _handleFlagChanged(doublePrimary: true),
-                  onSaveEdits: _captureSlotEditChanges,
-                  onPendingReorderChanged: _capturePendingReorderChanges,
-                  onSaveReposition: _captureRepositionChanges,
-                  onPendingRepositionChanged: _capturePendingRepositionChanges,
-                  onCommitEditsBound: (fn) => _commitEdits = fn,
-                  onCommitRepositionBound: (fn) => _commitReposition = fn,
-                  onUndoRepositionBound: (fn) => _undoReposition = fn,
-                  onRedoRepositionBound: (fn) => _redoReposition = fn,
-                  onUndoRearrangeBound: (fn) => _undoRearrange = fn,
-                  onRedoRearrangeBound: (fn) => _redoRearrange = fn,
-                  onRearrangeUndoRedoChanged: (canUndo, canRedo) {
-                    _setStateSafely(() {
-                      _canUndoRearrange = canUndo;
-                      _canRedoRearrange = canRedo;
-                    });
-                  },
-                  onRepositionUndoRedoChanged: (canUndo, canRedo) {
-                    _setStateSafely(() {
-                      _canUndoReposition = canUndo;
-                      _canRedoReposition = canRedo;
-                    });
-                  },
-                  overlayBuilder: _buildOverlayLayer,
+                child: OnboardingTarget(
+                  step: OnboardingStep.detailReposition,
+                  isShown: (onboarding) =>
+                      onboarding.bulkFocus == OnboardingBulkFocus.primary,
+                  targetBorderRadius: BorderRadius.circular(8),
+                  child: OnboardingTarget(
+                    step: OnboardingStep.detailSlotsGrid,
+                    targetBorderRadius: BorderRadius.circular(8),
+                    child: GazeDirectionGrid(
+                      key: _gridKey,
+                      gazeId: _current.id,
+                      gazeExportName: _current.name,
+                      isDoublePrimary: _dualPrimary,
+                      isCompact: _compactMode,
+                      isEditMode: _isRearrangeMode,
+                      isRepositionMode: _isRepositionMode,
+                      isCellTapEnabled: !_isAnyEditMode,
+                      onDoublePrimaryEnabled: () =>
+                          _handleFlagChanged(doublePrimary: true),
+                      onSaveEdits: _captureSlotEditChanges,
+                      onPendingReorderChanged: _capturePendingReorderChanges,
+                      onSaveReposition: _captureRepositionChanges,
+                      onPendingRepositionChanged:
+                          _capturePendingRepositionChanges,
+                      onCommitEditsBound: (fn) => _commitEdits = fn,
+                      onCommitRepositionBound: (fn) => _commitReposition = fn,
+                      onUndoRepositionBound: (fn) => _undoReposition = fn,
+                      onRedoRepositionBound: (fn) => _redoReposition = fn,
+                      onUndoRearrangeBound: (fn) => _undoRearrange = fn,
+                      onRedoRearrangeBound: (fn) => _redoRearrange = fn,
+                      onRearrangeUndoRedoChanged: (canUndo, canRedo) {
+                        _setStateSafely(() {
+                          _canUndoRearrange = canUndo;
+                          _canRedoRearrange = canRedo;
+                        });
+                      },
+                      onRepositionUndoRedoChanged: (canUndo, canRedo) {
+                        _setStateSafely(() {
+                          _canUndoReposition = canUndo;
+                          _canRedoReposition = canRedo;
+                        });
+                        if (canUndo) _promoteRepositionCoachToSave();
+                      },
+                      overlayBuilder: _buildOverlayLayer,
+                    ),
+                  ),
                 ),
               ),
 

@@ -36,11 +36,26 @@ class OnboardingController extends ChangeNotifier {
   final GlobalKey slotEditorUndoRedoKey = GlobalKey();
   final GlobalKey slotEditorToolsKey = GlobalKey();
   final GlobalKey slotEditorSaveKey = GlobalKey();
+  final GlobalKey detailBulkEditButtonKey = GlobalKey();
+  final GlobalKey detailEditMenuKey = GlobalKey();
+  final GlobalKey detailRepositionKey = GlobalKey();
+  final GlobalKey detailRepositionPickKey = GlobalKey();
+  final GlobalKey detailRepositionSaveKey = GlobalKey();
+  final GlobalKey detailRearrangeKey = GlobalKey();
+  final GlobalKey detailRearrangePickKey = GlobalKey();
+  final GlobalKey detailRearrangeSaveKey = GlobalKey();
+  final GlobalKey detailTextPickKey = GlobalKey();
+  final GlobalKey detailTextAddKey = GlobalKey();
+  final GlobalKey detailTextCoachKey = GlobalKey();
+  final GlobalKey detailTextSaveKey = GlobalKey();
+  final GlobalKey detailTextDoneKey = GlobalKey();
 
   OnboardingLaunchMode _launchMode = OnboardingLaunchMode.automatic;
   OnboardingStep? _currentStep;
   bool _isActive = false;
   OnboardingStep? _showcaseStartedForStep;
+  OnboardingBulkFocus? _showcaseStartedFocus;
+  OnboardingBulkFocus _bulkFocus = OnboardingBulkFocus.primary;
   bool _skipConfirmShowing = false;
   bool _createNameAdvanceEnabled = false;
   SlotKey? _tutorialSlotKey;
@@ -72,6 +87,9 @@ class OnboardingController extends ChangeNotifier {
   /// Slot filled during the photo-pick step, reused by later highlights.
   SlotKey? get tutorialSlotKey => _tutorialSlotKey;
 
+  /// Active highlight inside a bulk-edit step.
+  OnboardingBulkFocus get bulkFocus => _bulkFocus;
+
   /// Updates Next availability while the user types a gaze name.
   void setCreateNameAdvanceEnabled(bool enabled) {
     if (_createNameAdvanceEnabled == enabled) return;
@@ -82,6 +100,15 @@ class OnboardingController extends ChangeNotifier {
   /// Remembers the first slot filled during the photo-pick step.
   void rememberTutorialSlot(SlotKey key) {
     _tutorialSlotKey = key;
+  }
+
+  /// Moves the highlight within the current bulk-edit step.
+  void setBulkFocus(OnboardingBulkFocus focus) {
+    if (_bulkFocus == focus) return;
+    _bulkFocus = focus;
+    _showcaseStartedForStep = null;
+    _showcaseStartedFocus = null;
+    notifyListeners();
   }
 
   /// GlobalKey for a showcase [step], or null when that step has no target yet.
@@ -103,6 +130,25 @@ class OnboardingController extends ChangeNotifier {
       OnboardingStep.slotEditorUndoRedo => slotEditorUndoRedoKey,
       OnboardingStep.slotEditorTools => slotEditorToolsKey,
       OnboardingStep.slotEditorSave => slotEditorSaveKey,
+      OnboardingStep.detailBulkEditButton => detailBulkEditButtonKey,
+      OnboardingStep.detailEditMenu => detailEditMenuKey,
+      OnboardingStep.detailReposition => switch (_bulkFocus) {
+        OnboardingBulkFocus.pickMode => detailRepositionPickKey,
+        OnboardingBulkFocus.save => detailRepositionSaveKey,
+        _ => detailRepositionKey,
+      },
+      OnboardingStep.detailRearrange => switch (_bulkFocus) {
+        OnboardingBulkFocus.pickMode => detailRearrangePickKey,
+        OnboardingBulkFocus.save => detailRearrangeSaveKey,
+        _ => detailRearrangeKey,
+      },
+      OnboardingStep.detailText => switch (_bulkFocus) {
+        OnboardingBulkFocus.pickMode => detailTextPickKey,
+        OnboardingBulkFocus.coach => detailTextCoachKey,
+        OnboardingBulkFocus.save => detailTextSaveKey,
+        OnboardingBulkFocus.exit => detailTextDoneKey,
+        OnboardingBulkFocus.primary => detailTextAddKey,
+      },
       _ => null,
     };
   }
@@ -140,6 +186,8 @@ class OnboardingController extends ChangeNotifier {
     if (!_isActive) return;
 
     _showcaseStartedForStep = null;
+    _showcaseStartedFocus = null;
+    _bulkFocus = OnboardingBulkFocus.primary;
     if (step != null) {
       _currentStep = step;
     } else if (_currentStep != null) {
@@ -163,6 +211,7 @@ class OnboardingController extends ChangeNotifier {
   /// Clears per-step showcase guard so the next step can start.
   void clearShowcaseSession() {
     _showcaseStartedForStep = null;
+    _showcaseStartedFocus = null;
   }
 
   /// Shows skip confirmation; completes onboarding if confirmed.
@@ -193,6 +242,8 @@ class OnboardingController extends ChangeNotifier {
     _isActive = false;
     _currentStep = null;
     _showcaseStartedForStep = null;
+    _showcaseStartedFocus = null;
+    _bulkFocus = OnboardingBulkFocus.primary;
     _createNameAdvanceEnabled = false;
     _tutorialSlotKey = null;
     notifyListeners();
@@ -208,19 +259,28 @@ class OnboardingController extends ChangeNotifier {
     if (!_isActive || _currentStep == null) return;
 
     final step = _currentStep!;
-    if (_showcaseStartedForStep == step) return;
+    final focus = _bulkFocus;
+    if (_showcaseStartedForStep == step && _showcaseStartedFocus == focus) {
+      return;
+    }
     final key = keyFor(step);
     if (key == null) return;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_isActive || _currentStep != step) return;
-      if (_showcaseStartedForStep == step) return;
+      if (!_isActive || _currentStep != step || _bulkFocus != focus) {
+        return;
+      }
+      if (_showcaseStartedForStep == step && _showcaseStartedFocus == focus) {
+        return;
+      }
       try {
         ShowcaseView.get().startShowCase([key]);
         _showcaseStartedForStep = step;
+        _showcaseStartedFocus = focus;
       } catch (e) {
         debugPrint('Onboarding showcase start failed: $e');
         _showcaseStartedForStep = null;
+        _showcaseStartedFocus = null;
         if (attempt < 8) {
           _scheduleShowcaseStart(attempt: attempt + 1);
         }
@@ -231,6 +291,7 @@ class OnboardingController extends ChangeNotifier {
   /// Dismisses any active showcase overlay.
   void dismissShowcase() {
     _showcaseStartedForStep = null;
+    _showcaseStartedFocus = null;
     try {
       ShowcaseView.get().dismiss();
     } catch (_) {}

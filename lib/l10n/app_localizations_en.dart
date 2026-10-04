@@ -342,4 +342,60 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get onboardingSlotSaveBody => 'Tap Save to return to your gaze grid.';
+
+  @override
+  String get onboardingDetailEditTitle => 'Edit the full grid';
+
+  @override
+  String get onboardingDetailEditBody =>
+      'Tap Edit (top right) to reposition slots, rearrange photos, or add text overlays.';
+
+  @override
+  String get onboardingDetailEditMenuTitle => 'Three ways to edit';
+
+  @override
+  String get onboardingDetailEditMenuBody =>
+      'Reposition adjusts each slot\'s image. Rearrange swaps photos between slots. Texts adds labels on the composed grid.';
+
+  @override
+  String get onboardingDetailRepositionTitle => 'Reposition';
+
+  @override
+  String get onboardingDetailRepositionBody =>
+      'Nudge any slot\'s framing, then tap Save. Undo and Redo are available here too.';
+
+  @override
+  String get onboardingDetailRearrangeTitle => 'Rearrange';
+
+  @override
+  String get onboardingDetailRearrangeBody =>
+      'Drag one slot onto another to swap photos. Tap Save when the order looks right.';
+
+  @override
+  String get onboardingDetailTextTitle => 'Add text';
+
+  @override
+  String get onboardingDetailTextBody =>
+      'Tap Add Text, then move, scale, and style your label. Tap Save, then exit edit mode.';
+
+  @override
+  String get onboardingDetailPickRepositionTitle => 'Open reposition';
+
+  @override
+  String get onboardingDetailPickRepositionBody =>
+      'Tap Reposition to adjust how each photo sits in its slot.';
+
+  @override
+  String get onboardingDetailPickRearrangeTitle => 'Open rearrange';
+
+  @override
+  String get onboardingDetailPickRearrangeBody =>
+      'Tap Rearrange to swap photos between slots.';
+
+  @override
+  String get onboardingDetailPickTextTitle => 'Open texts';
+
+  @override
+  String get onboardingDetailPickTextBody =>
+      'Tap Texts to add a label on the grid.';
 }

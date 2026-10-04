@@ -343,4 +343,60 @@ class AppLocalizationsId extends AppLocalizations {
   @override
   String get onboardingSlotSaveBody =>
       'Ketuk Simpan untuk kembali ke grid tatapan Anda.';
+
+  @override
+  String get onboardingDetailEditTitle => 'Ubah seluruh grid';
+
+  @override
+  String get onboardingDetailEditBody =>
+      'Ketuk Ubah (kanan atas) untuk menggeser slot, menukar foto, atau menambah teks overlay.';
+
+  @override
+  String get onboardingDetailEditMenuTitle => 'Tiga cara mengubah';
+
+  @override
+  String get onboardingDetailEditMenuBody =>
+      'Posisi menyesuaikan gambar tiap slot. Susunan menukar foto antar slot. Teks menambah label di grid komposit.';
+
+  @override
+  String get onboardingDetailRepositionTitle => 'Posisi';
+
+  @override
+  String get onboardingDetailRepositionBody =>
+      'Sesuaikan bingkai slot mana pun, lalu ketuk Simpan. Undo dan Redo juga tersedia di sini.';
+
+  @override
+  String get onboardingDetailRearrangeTitle => 'Susunan';
+
+  @override
+  String get onboardingDetailRearrangeBody =>
+      'Seret satu slot ke slot lain untuk menukar foto. Ketuk Simpan jika urutannya sudah benar.';
+
+  @override
+  String get onboardingDetailTextTitle => 'Tambah teks';
+
+  @override
+  String get onboardingDetailTextBody =>
+      'Ketuk Tambah Teks, lalu pindahkan, ubah skala, dan gaya label Anda. Ketuk Simpan, lalu keluar dari mode ubah.';
+
+  @override
+  String get onboardingDetailPickRepositionTitle => 'Buka posisi';
+
+  @override
+  String get onboardingDetailPickRepositionBody =>
+      'Ketuk Posisi untuk mengatur foto di tiap slot.';
+
+  @override
+  String get onboardingDetailPickRearrangeTitle => 'Buka susunan';
+
+  @override
+  String get onboardingDetailPickRearrangeBody =>
+      'Ketuk Susunan untuk menukar foto antar slot.';
+
+  @override
+  String get onboardingDetailPickTextTitle => 'Buka teks';
+
+  @override
+  String get onboardingDetailPickTextBody =>
+      'Ketuk Teks untuk menambah label di grid.';
 }

@@ -242,8 +242,20 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
 
   /// Initialises [_pendingSlotMap] from a fresh DB snapshot if not
   /// already set. Called once when edit mode is first rendered.
+  ///
+  /// Waits until the slot stream has rows. The first frame after the
+  /// grid is remounted often has no snapshot yet, and locking that
+  /// empty map makes every cell look blank and unsavable.
   void _initPendingIfNeeded(Map<String, GazeSlot> dbSlotMap) {
-    if (_pendingSlotMap != null) return;
+    final dbHasSlot = dbSlotMap.isNotEmpty;
+    if (_pendingSlotMap != null) {
+      final pendingHasSlot = _pendingSlotMap!.values.any(
+        (slot) => slot != null,
+      );
+      if (pendingHasSlot || !dbHasSlot) return;
+      _pendingSlotMap = null;
+    }
+    if (!dbHasSlot) return;
     _pendingSlotMap = {
       for (final key in _allEditableKeys()) key: dbSlotMap[key.name],
     };
@@ -321,8 +333,25 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
     setState(() => _dragOverKey = null);
   }
 
+  /// Captures the saved transform for each slot once the stream has rows.
+  ///
+  /// An empty first snapshot must not stick. Gestures compare against
+  /// these originals, so a blank capture leaves Save disabled.
   void _initRepositionPendingIfNeeded(List<GazeSlot> dbSlots) {
-    if (_pendingRepositionById != null) return;
+    final originals = _repositionOriginalById;
+    final originalsMatch =
+        _pendingRepositionById != null &&
+        originals != null &&
+        originals.length == dbSlots.length &&
+        dbSlots.every((slot) => originals.containsKey(slot.id));
+    if (originalsMatch) return;
+    if (dbSlots.isEmpty) {
+      if (originals == null || originals.isEmpty) {
+        _pendingRepositionById = null;
+        _repositionOriginalById = null;
+      }
+      return;
+    }
     _repositionOriginalById = {
       for (final slot in dbSlots)
         slot.id: SlotTransformPatch(
@@ -332,7 +361,7 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
           rotation: slot.rotation,
         ),
     };
-    _pendingRepositionById = {};
+    _pendingRepositionById ??= {};
   }
 
   void commitReposition() {
@@ -664,12 +693,12 @@ class _GazeDirectionGridState extends State<GazeDirectionGrid> {
     if (!mounted) return;
     final onboarding = OnboardingScope.maybeOf(context);
     final step = onboarding?.currentStep;
-    if (onboarding == null ||
-        !onboarding.isActive ||
-        step == null ||
-        !step.isSlotEditorStep) {
+    if (onboarding == null || !onboarding.isActive || step == null) return;
+    if (step == OnboardingStep.detailBulkEditButton) {
+      onboarding.startShowcaseForCurrentStep();
       return;
     }
+    if (!step.isSlotEditorStep) return;
     onboarding.advance(step: OnboardingStep.detailTapFilledSlot);
     onboarding.startShowcaseForCurrentStep();
   }

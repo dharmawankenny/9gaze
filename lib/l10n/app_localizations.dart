@@ -715,6 +715,102 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Tap Save to return to your gaze grid.'**
   String get onboardingSlotSaveBody;
+
+  /// No description provided for @onboardingDetailEditTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit the full grid'**
+  String get onboardingDetailEditTitle;
+
+  /// No description provided for @onboardingDetailEditBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap Edit (top right) to reposition slots, rearrange photos, or add text overlays.'**
+  String get onboardingDetailEditBody;
+
+  /// No description provided for @onboardingDetailEditMenuTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Three ways to edit'**
+  String get onboardingDetailEditMenuTitle;
+
+  /// No description provided for @onboardingDetailEditMenuBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Reposition adjusts each slot\'s image. Rearrange swaps photos between slots. Texts adds labels on the composed grid.'**
+  String get onboardingDetailEditMenuBody;
+
+  /// No description provided for @onboardingDetailRepositionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Reposition'**
+  String get onboardingDetailRepositionTitle;
+
+  /// No description provided for @onboardingDetailRepositionBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Nudge any slot\'s framing, then tap Save. Undo and Redo are available here too.'**
+  String get onboardingDetailRepositionBody;
+
+  /// No description provided for @onboardingDetailRearrangeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Rearrange'**
+  String get onboardingDetailRearrangeTitle;
+
+  /// No description provided for @onboardingDetailRearrangeBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Drag one slot onto another to swap photos. Tap Save when the order looks right.'**
+  String get onboardingDetailRearrangeBody;
+
+  /// No description provided for @onboardingDetailTextTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Add text'**
+  String get onboardingDetailTextTitle;
+
+  /// No description provided for @onboardingDetailTextBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap Add Text, then move, scale, and style your label. Tap Save, then exit edit mode.'**
+  String get onboardingDetailTextBody;
+
+  /// No description provided for @onboardingDetailPickRepositionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Open reposition'**
+  String get onboardingDetailPickRepositionTitle;
+
+  /// No description provided for @onboardingDetailPickRepositionBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap Reposition to adjust how each photo sits in its slot.'**
+  String get onboardingDetailPickRepositionBody;
+
+  /// No description provided for @onboardingDetailPickRearrangeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Open rearrange'**
+  String get onboardingDetailPickRearrangeTitle;
+
+  /// No description provided for @onboardingDetailPickRearrangeBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap Rearrange to swap photos between slots.'**
+  String get onboardingDetailPickRearrangeBody;
+
+  /// No description provided for @onboardingDetailPickTextTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Open texts'**
+  String get onboardingDetailPickTextTitle;
+
+  /// No description provided for @onboardingDetailPickTextBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap Texts to add a label on the grid.'**
+  String get onboardingDetailPickTextBody;
 }
 
 class _AppLocalizationsDelegate

@@ -50,4 +50,34 @@ enum OnboardingStep {
       _ => false,
     };
   }
+
+  /// True for the bulk-edit tour on the gaze detail screen.
+  bool get isBulkEditStep {
+    return switch (this) {
+      detailBulkEditButton ||
+      detailEditMenu ||
+      detailReposition ||
+      detailRearrange ||
+      detailText => true,
+      _ => false,
+    };
+  }
+}
+
+/// Which control a bulk-edit step is highlighting.
+enum OnboardingBulkFocus {
+  /// The mode button on the edit menu, before that mode opens.
+  pickMode,
+
+  /// Grid, edit menu, or Add Text, depending on the step.
+  primary,
+
+  /// Text-mode explanation after a label is added.
+  coach,
+
+  /// Save action for the current edit mode.
+  save,
+
+  /// Done, which leaves edit mode.
+  exit,
 }

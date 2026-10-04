@@ -117,5 +117,21 @@
   "onboardingSlotToolsTitle": "Slot tools",
   "onboardingSlotToolsBody": "Recenter runs automatic eye alignment again. Reset clears manual edits from this session. Replace imports a different photo for this slot.",
   "onboardingSlotSaveTitle": "Save this slot",
-  "onboardingSlotSaveBody": "Tap Save to return to your gaze grid."
+  "onboardingSlotSaveBody": "Tap Save to return to your gaze grid.",
+  "onboardingDetailEditTitle": "Edit the full grid",
+  "onboardingDetailEditBody": "Tap Edit (top right) to reposition slots, rearrange photos, or add text overlays.",
+  "onboardingDetailEditMenuTitle": "Three ways to edit",
+  "onboardingDetailEditMenuBody": "Reposition adjusts each slot's image. Rearrange swaps photos between slots. Texts adds labels on the composed grid.",
+  "onboardingDetailRepositionTitle": "Reposition",
+  "onboardingDetailRepositionBody": "Nudge any slot's framing, then tap Save. Undo and Redo are available here too.",
+  "onboardingDetailRearrangeTitle": "Rearrange",
+  "onboardingDetailRearrangeBody": "Drag one slot onto another to swap photos. Tap Save when the order looks right.",
+  "onboardingDetailTextTitle": "Add text",
+  "onboardingDetailTextBody": "Tap Add Text, then move, scale, and style your label. Tap Save, then exit edit mode.",
+  "onboardingDetailPickRepositionTitle": "Open reposition",
+  "onboardingDetailPickRepositionBody": "Tap Reposition to adjust how each photo sits in its slot.",
+  "onboardingDetailPickRearrangeTitle": "Open rearrange",
+  "onboardingDetailPickRearrangeBody": "Tap Rearrange to swap photos between slots.",
+  "onboardingDetailPickTextTitle": "Open texts",
+  "onboardingDetailPickTextBody": "Tap Texts to add a label on the grid."
 }
