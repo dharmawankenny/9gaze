@@ -413,4 +413,90 @@ class AppLocalizationsId extends AppLocalizations {
   @override
   String get onboardingCompleteBody =>
       'Itu alur lengkapnya: impor, tetapkan slot, penjajaran otomatis, sesuaikan, ekspor. Semua tetap di perangkat Anda. Ada pertanyaan? Email 9gaze@atelierkensa.com.';
+
+  @override
+  String get settings => 'Pengaturan';
+
+  @override
+  String get restartTutorial => 'Ulangi tutorial';
+
+  @override
+  String get aboutApp => 'Tentang Aplikasi';
+
+  @override
+  String get aboutAppBody =>
+      'Impor foto gerakan mata, susun dalam grid berlabel, dan ekspor satu gambar komposit. Semua tetap di perangkat Anda.';
+
+  @override
+  String aboutVersion(String version) {
+    return 'Versi $version';
+  }
+
+  @override
+  String get settingsBackups => 'Cadangan';
+
+  @override
+  String get settingsExportData => 'Ekspor data';
+
+  @override
+  String get settingsImportData => 'Impor data';
+
+  @override
+  String get settingsExportBody =>
+      'Simpan tatapan, foto, dan thumbnail ke satu file .9gaze.';
+
+  @override
+  String get settingsImportBody =>
+      'Ganti semua tatapan di perangkat ini dengan file cadangan.';
+
+  @override
+  String get settingsStorage => 'Penyimpanan';
+
+  @override
+  String get settingsPhotos => 'Foto dan thumbnail';
+
+  @override
+  String get settingsDatabase => 'Basis data';
+
+  @override
+  String get settingsTotalUsage => 'Total pemakaian';
+
+  @override
+  String get settingsTutorial => 'Tutorial';
+
+  @override
+  String get settingsRestartBody => 'Ulangi tutorial dari layar utama.';
+
+  @override
+  String get settingsImportConfirmTitle => 'Ganti semua data?';
+
+  @override
+  String get settingsImportConfirmBody =>
+      'Impor ini mengganti setiap tatapan, foto, dan thumbnail di perangkat ini. Tindakan ini tidak bisa dibatalkan.';
+
+  @override
+  String get settingsImportConfirmAction => 'Ganti data';
+
+  @override
+  String get settingsExportSuccess => 'Cadangan tersimpan.';
+
+  @override
+  String get settingsImportSuccess => 'Data dipulihkan dari cadangan.';
+
+  @override
+  String get settingsBackupFailed => 'Cadangan tidak bisa diselesaikan.';
+
+  @override
+  String get settingsBackupUnsupported =>
+      'File ini bukan cadangan 9Gaze yang didukung.';
+
+  @override
+  String get settingsBackupUnreadable => 'Cadangan tidak bisa dibaca.';
+
+  @override
+  String get onboardingHomeCreateReturningTitle => 'Jalankan tutorial lagi';
+
+  @override
+  String get onboardingHomeCreateReturningBody =>
+      'Tatapan tersimpan Anda ada di daftar di bawah. Ketuk Tatapan Baru untuk mengulang impor dan ekspor, atau buka tatapan yang ada untuk berlatih mengedit.';
 }

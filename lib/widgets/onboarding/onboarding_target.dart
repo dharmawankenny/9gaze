@@ -70,6 +70,9 @@ class OnboardingTarget extends StatelessWidget {
       l10n,
       step,
       focus: onboarding.bulkFocus,
+      returningHome:
+          onboarding.skipEmptyHomeList &&
+          step == OnboardingStep.homeCreateButton,
     );
     final tapToAdvance =
         forceTapToAdvance || OnboardingStrings.isTapToAdvance(step);

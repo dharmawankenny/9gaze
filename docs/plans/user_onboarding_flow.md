@@ -672,6 +672,6 @@ Wire menu from [`HomeScreen`](../../lib/screens/home/home_screen.dart) (owns `On
 
 ### Stretch checklist
 
-- [ ] Phase 7a: `HomeTopBar` layout + menu affordance
-- [ ] Phase 7b: Settings popup + About App
-- [ ] Phase 7c: `startTutorialReplay()` + skip step 2 when count > 0 + returning copy
+- [x] Phase 7a: `HomeTopBar` layout + menu affordance
+- [x] Phase 7b: Settings popup + About App
+- [x] Phase 7c: `startTutorialReplay()` + skip step 2 when count > 0 + returning copy

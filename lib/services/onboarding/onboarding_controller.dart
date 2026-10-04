@@ -52,6 +52,7 @@ class OnboardingController extends ChangeNotifier {
   final GlobalKey detailExportKey = GlobalKey();
 
   OnboardingLaunchMode _launchMode = OnboardingLaunchMode.automatic;
+  bool _skipEmptyHomeList = false;
   OnboardingStep? _currentStep;
   bool _isActive = false;
   OnboardingStep? _showcaseStartedForStep;
@@ -75,6 +76,9 @@ class OnboardingController extends ChangeNotifier {
 
   /// How this tour was started.
   OnboardingLaunchMode get launchMode => _launchMode;
+
+  /// True when manual replay should skip the empty-list step.
+  bool get skipEmptyHomeList => _skipEmptyHomeList;
 
   /// Current step when [_isActive]; null when idle.
   OnboardingStep? get currentStep => _currentStep;
@@ -162,6 +166,7 @@ class OnboardingController extends ChangeNotifier {
       return false;
     }
     _launchMode = OnboardingLaunchMode.automatic;
+    _skipEmptyHomeList = false;
     _currentStep = OnboardingStep.welcome;
     _isActive = true;
     notifyListeners();
@@ -237,6 +242,25 @@ class OnboardingController extends ChangeNotifier {
     await complete();
   }
 
+  /// Starts the tour from Settings without clearing the completed flag.
+  ///
+  /// Welcome still shows. When saved gazes exist, the empty-list step
+  /// is skipped and the create button uses the returning copy.
+  Future<void> startTutorialReplay() async {
+    dismissShowcase();
+    final count = await GazesRepository(_db).count();
+    _launchMode = OnboardingLaunchMode.manualReplay;
+    _skipEmptyHomeList = count > 0;
+    _currentStep = OnboardingStep.welcome;
+    _isActive = true;
+    _showcaseStartedForStep = null;
+    _showcaseStartedFocus = null;
+    _bulkFocus = OnboardingBulkFocus.primary;
+    _createNameAdvanceEnabled = false;
+    _tutorialSlotKey = null;
+    notifyListeners();
+  }
+
   /// Ends the tour and marks onboarding complete in prefs.
   Future<void> complete() async {
     dismissShowcase();
@@ -248,6 +272,8 @@ class OnboardingController extends ChangeNotifier {
     _bulkFocus = OnboardingBulkFocus.primary;
     _createNameAdvanceEnabled = false;
     _tutorialSlotKey = null;
+    _skipEmptyHomeList = false;
+    _launchMode = OnboardingLaunchMode.automatic;
     notifyListeners();
   }
 

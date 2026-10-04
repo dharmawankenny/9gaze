@@ -835,6 +835,162 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'That is the full workflow: import, assign, auto-align, fine-tune, export. Everything stays on your device. Questions or feedback? Email 9gaze@atelierkensa.com.'**
   String get onboardingCompleteBody;
+
+  /// No description provided for @settings.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings'**
+  String get settings;
+
+  /// No description provided for @restartTutorial.
+  ///
+  /// In en, this message translates to:
+  /// **'Restart tutorial'**
+  String get restartTutorial;
+
+  /// No description provided for @aboutApp.
+  ///
+  /// In en, this message translates to:
+  /// **'About App'**
+  String get aboutApp;
+
+  /// No description provided for @aboutAppBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Import eye movement photos, arrange them in a labeled grid, and export one composed image. Everything stays on your device.'**
+  String get aboutAppBody;
+
+  /// No description provided for @aboutVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'Version {version}'**
+  String aboutVersion(String version);
+
+  /// No description provided for @settingsBackups.
+  ///
+  /// In en, this message translates to:
+  /// **'Backups'**
+  String get settingsBackups;
+
+  /// No description provided for @settingsExportData.
+  ///
+  /// In en, this message translates to:
+  /// **'Export data'**
+  String get settingsExportData;
+
+  /// No description provided for @settingsImportData.
+  ///
+  /// In en, this message translates to:
+  /// **'Import data'**
+  String get settingsImportData;
+
+  /// No description provided for @settingsExportBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Save gazes, photos, and thumbnails into one .9gaze file.'**
+  String get settingsExportBody;
+
+  /// No description provided for @settingsImportBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace every gaze on this device with a backup file.'**
+  String get settingsImportBody;
+
+  /// No description provided for @settingsStorage.
+  ///
+  /// In en, this message translates to:
+  /// **'Storage'**
+  String get settingsStorage;
+
+  /// No description provided for @settingsPhotos.
+  ///
+  /// In en, this message translates to:
+  /// **'Photos and thumbnails'**
+  String get settingsPhotos;
+
+  /// No description provided for @settingsDatabase.
+  ///
+  /// In en, this message translates to:
+  /// **'Database'**
+  String get settingsDatabase;
+
+  /// No description provided for @settingsTotalUsage.
+  ///
+  /// In en, this message translates to:
+  /// **'Total usage'**
+  String get settingsTotalUsage;
+
+  /// No description provided for @settingsTutorial.
+  ///
+  /// In en, this message translates to:
+  /// **'Tutorial'**
+  String get settingsTutorial;
+
+  /// No description provided for @settingsRestartBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Walk through the tutorial again from the home screen.'**
+  String get settingsRestartBody;
+
+  /// No description provided for @settingsImportConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace all data?'**
+  String get settingsImportConfirmTitle;
+
+  /// No description provided for @settingsImportConfirmBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This import replaces every gaze, photo, and thumbnail on this device. It cannot be undone.'**
+  String get settingsImportConfirmBody;
+
+  /// No description provided for @settingsImportConfirmAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace data'**
+  String get settingsImportConfirmAction;
+
+  /// No description provided for @settingsExportSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Backup saved.'**
+  String get settingsExportSuccess;
+
+  /// No description provided for @settingsImportSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Data restored from backup.'**
+  String get settingsImportSuccess;
+
+  /// No description provided for @settingsBackupFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The backup could not be completed.'**
+  String get settingsBackupFailed;
+
+  /// No description provided for @settingsBackupUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'This file is not a supported 9Gaze backup.'**
+  String get settingsBackupUnsupported;
+
+  /// No description provided for @settingsBackupUnreadable.
+  ///
+  /// In en, this message translates to:
+  /// **'The backup could not be read.'**
+  String get settingsBackupUnreadable;
+
+  /// No description provided for @onboardingHomeCreateReturningTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Run the tutorial again'**
+  String get onboardingHomeCreateReturningTitle;
+
+  /// No description provided for @onboardingHomeCreateReturningBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Your saved gazes are listed below. Tap New Gaze to walk through import and export again, or open an existing gaze to practice editing.'**
+  String get onboardingHomeCreateReturningBody;
 }
 
 class _AppLocalizationsDelegate

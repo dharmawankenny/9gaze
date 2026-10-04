@@ -137,5 +137,38 @@
   "onboardingDetailExportTitle": "Export your grid",
   "onboardingDetailExportBody": "Tap Export to Gallery to save the finished 3×3 composed image to your photo library. Ready to share in seconds.",
   "onboardingCompleteTitle": "You are ready",
-  "onboardingCompleteBody": "That is the full workflow: import, assign, auto-align, fine-tune, export. Everything stays on your device. Questions or feedback? Email 9gaze@atelierkensa.com."
+  "onboardingCompleteBody": "That is the full workflow: import, assign, auto-align, fine-tune, export. Everything stays on your device. Questions or feedback? Email 9gaze@atelierkensa.com.",
+  "settings": "Settings",
+  "restartTutorial": "Restart tutorial",
+  "aboutApp": "About App",
+  "aboutAppBody": "Import eye movement photos, arrange them in a labeled grid, and export one composed image. Everything stays on your device.",
+  "aboutVersion": "Version {version}",
+  "@aboutVersion": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsBackups": "Backups",
+  "settingsExportData": "Export data",
+  "settingsImportData": "Import data",
+  "settingsExportBody": "Save gazes, photos, and thumbnails into one .9gaze file.",
+  "settingsImportBody": "Replace every gaze on this device with a backup file.",
+  "settingsStorage": "Storage",
+  "settingsPhotos": "Photos and thumbnails",
+  "settingsDatabase": "Database",
+  "settingsTotalUsage": "Total usage",
+  "settingsTutorial": "Tutorial",
+  "settingsRestartBody": "Walk through the tutorial again from the home screen.",
+  "settingsImportConfirmTitle": "Replace all data?",
+  "settingsImportConfirmBody": "This import replaces every gaze, photo, and thumbnail on this device. It cannot be undone.",
+  "settingsImportConfirmAction": "Replace data",
+  "settingsExportSuccess": "Backup saved.",
+  "settingsImportSuccess": "Data restored from backup.",
+  "settingsBackupFailed": "The backup could not be completed.",
+  "settingsBackupUnsupported": "This file is not a supported 9Gaze backup.",
+  "settingsBackupUnreadable": "The backup could not be read.",
+  "onboardingHomeCreateReturningTitle": "Run the tutorial again",
+  "onboardingHomeCreateReturningBody": "Your saved gazes are listed below. Tap New Gaze to walk through import and export again, or open an existing gaze to practice editing."
 }

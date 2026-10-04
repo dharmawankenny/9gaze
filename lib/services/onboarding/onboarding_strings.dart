@@ -14,10 +14,12 @@ class OnboardingStrings {
   /// Returns title and body for [step].
   ///
   /// [focus] selects the mode-button copy before a bulk-edit mode opens.
+  /// [returningHome] uses the replay copy on the create button.
   static OnboardingCopy forStep(
     AppLocalizations l10n,
     OnboardingStep step, {
     OnboardingBulkFocus focus = OnboardingBulkFocus.primary,
+    bool returningHome = false,
   }) {
     if (focus == OnboardingBulkFocus.pickMode) {
       final pickCopy = _pickModeCopy(l10n, step);
@@ -32,10 +34,16 @@ class OnboardingStrings {
         title: l10n.onboardingHomeEmptyTitle,
         body: l10n.onboardingHomeEmptyBody,
       ),
-      OnboardingStep.homeCreateButton => (
-        title: l10n.onboardingHomeCreateTitle,
-        body: l10n.onboardingHomeCreateBody,
-      ),
+      OnboardingStep.homeCreateButton =>
+        returningHome
+            ? (
+                title: l10n.onboardingHomeCreateReturningTitle,
+                body: l10n.onboardingHomeCreateReturningBody,
+              )
+            : (
+                title: l10n.onboardingHomeCreateTitle,
+                body: l10n.onboardingHomeCreateBody,
+              ),
       OnboardingStep.createName => (
         title: l10n.onboardingCreateNameTitle,
         body: l10n.onboardingCreateNameBody,

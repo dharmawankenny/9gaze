@@ -122,5 +122,38 @@
   "onboardingDetailExportTitle": "Ekspor grid Anda",
   "onboardingDetailExportBody": "Ketuk Ekspor ke Galeri untuk menyimpan grid 3×3 jadi satu gambar di perpustakaan foto. Siap dibagikan dalam hitungan detik.",
   "onboardingCompleteTitle": "Anda siap",
-  "onboardingCompleteBody": "Itu alur lengkapnya: impor, tetapkan slot, penjajaran otomatis, sesuaikan, ekspor. Semua tetap di perangkat Anda. Ada pertanyaan? Email 9gaze@atelierkensa.com."
+  "onboardingCompleteBody": "Itu alur lengkapnya: impor, tetapkan slot, penjajaran otomatis, sesuaikan, ekspor. Semua tetap di perangkat Anda. Ada pertanyaan? Email 9gaze@atelierkensa.com.",
+  "settings": "Pengaturan",
+  "restartTutorial": "Ulangi tutorial",
+  "aboutApp": "Tentang Aplikasi",
+  "aboutAppBody": "Impor foto gerakan mata, susun dalam grid berlabel, dan ekspor satu gambar komposit. Semua tetap di perangkat Anda.",
+  "aboutVersion": "Versi {version}",
+  "@aboutVersion": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsBackups": "Cadangan",
+  "settingsExportData": "Ekspor data",
+  "settingsImportData": "Impor data",
+  "settingsExportBody": "Simpan tatapan, foto, dan thumbnail ke satu file .9gaze.",
+  "settingsImportBody": "Ganti semua tatapan di perangkat ini dengan file cadangan.",
+  "settingsStorage": "Penyimpanan",
+  "settingsPhotos": "Foto dan thumbnail",
+  "settingsDatabase": "Basis data",
+  "settingsTotalUsage": "Total pemakaian",
+  "settingsTutorial": "Tutorial",
+  "settingsRestartBody": "Ulangi tutorial dari layar utama.",
+  "settingsImportConfirmTitle": "Ganti semua data?",
+  "settingsImportConfirmBody": "Impor ini mengganti setiap tatapan, foto, dan thumbnail di perangkat ini. Tindakan ini tidak bisa dibatalkan.",
+  "settingsImportConfirmAction": "Ganti data",
+  "settingsExportSuccess": "Cadangan tersimpan.",
+  "settingsImportSuccess": "Data dipulihkan dari cadangan.",
+  "settingsBackupFailed": "Cadangan tidak bisa diselesaikan.",
+  "settingsBackupUnsupported": "File ini bukan cadangan 9Gaze yang didukung.",
+  "settingsBackupUnreadable": "Cadangan tidak bisa dibaca.",
+  "onboardingHomeCreateReturningTitle": "Jalankan tutorial lagi",
+  "onboardingHomeCreateReturningBody": "Tatapan tersimpan Anda ada di daftar di bawah. Ketuk Tatapan Baru untuk mengulang impor dan ekspor, atau buka tatapan yang ada untuk berlatih mengedit."
 }

@@ -15,6 +15,7 @@ import 'package:kensa_9gaze/screens/home/widgets/gaze_list_view.dart';
 import 'package:kensa_9gaze/screens/home/widgets/home_search_bar.dart';
 import 'package:kensa_9gaze/screens/home/widgets/home_top_bar.dart';
 import 'package:kensa_9gaze/screens/home/widgets/new_gaze_button.dart';
+import 'package:kensa_9gaze/screens/settings/settings_screen.dart';
 import 'package:kensa_9gaze/screens/home/widgets/new_gaze_sheet.dart';
 import 'package:kensa_9gaze/services/onboarding/onboarding_controller.dart';
 import 'package:kensa_9gaze/services/onboarding/onboarding_step.dart';
@@ -108,8 +109,29 @@ class _HomeScreenState extends State<HomeScreen> {
     );
 
     if (!mounted) return;
-    onboarding.advance(step: OnboardingStep.homeEmptyList);
+    final nextStep = onboarding.skipEmptyHomeList
+        ? OnboardingStep.homeCreateButton
+        : OnboardingStep.homeEmptyList;
+    onboarding.advance(step: nextStep);
     onboarding.startShowcaseForCurrentStep();
+  }
+
+  /// Restarts the tour from the welcome step.
+  Future<void> _handleRestartTutorial() async {
+    final onboarding = OnboardingScope.of(context);
+    await onboarding.startTutorialReplay();
+    if (!mounted) return;
+    await _showWelcomeDialog(onboarding);
+  }
+
+  /// Opens the settings page. Tutorial restart runs after it closes.
+  void _handleOpenSettings() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            SettingsScreen(onRestartTutorial: _handleRestartTutorial),
+      ),
+    );
   }
 
   @override
@@ -222,7 +244,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   children: [
                     const SizedBox(height: 16),
-                    const HomeTopBar(),
+                    HomeTopBar(onOpenSettings: _handleOpenSettings),
                     if (hasEntries) ...[
                       const SizedBox(height: 20),
                       HomeSearchBar(

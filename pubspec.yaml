@@ -51,6 +51,9 @@ dependencies:
   path: ^1.9.1
   shared_preferences: ^2.5.5
   showcaseview: ^5.0.2
+  package_info_plus: ^10.2.2
+  file_picker: ^13.1.0
+  archive: ^4.3.0
 
 dev_dependencies:
   flutter_test:

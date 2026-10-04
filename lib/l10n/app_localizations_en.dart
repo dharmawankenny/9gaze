@@ -412,4 +412,91 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get onboardingCompleteBody =>
       'That is the full workflow: import, assign, auto-align, fine-tune, export. Everything stays on your device. Questions or feedback? Email 9gaze@atelierkensa.com.';
+
+  @override
+  String get settings => 'Settings';
+
+  @override
+  String get restartTutorial => 'Restart tutorial';
+
+  @override
+  String get aboutApp => 'About App';
+
+  @override
+  String get aboutAppBody =>
+      'Import eye movement photos, arrange them in a labeled grid, and export one composed image. Everything stays on your device.';
+
+  @override
+  String aboutVersion(String version) {
+    return 'Version $version';
+  }
+
+  @override
+  String get settingsBackups => 'Backups';
+
+  @override
+  String get settingsExportData => 'Export data';
+
+  @override
+  String get settingsImportData => 'Import data';
+
+  @override
+  String get settingsExportBody =>
+      'Save gazes, photos, and thumbnails into one .9gaze file.';
+
+  @override
+  String get settingsImportBody =>
+      'Replace every gaze on this device with a backup file.';
+
+  @override
+  String get settingsStorage => 'Storage';
+
+  @override
+  String get settingsPhotos => 'Photos and thumbnails';
+
+  @override
+  String get settingsDatabase => 'Database';
+
+  @override
+  String get settingsTotalUsage => 'Total usage';
+
+  @override
+  String get settingsTutorial => 'Tutorial';
+
+  @override
+  String get settingsRestartBody =>
+      'Walk through the tutorial again from the home screen.';
+
+  @override
+  String get settingsImportConfirmTitle => 'Replace all data?';
+
+  @override
+  String get settingsImportConfirmBody =>
+      'This import replaces every gaze, photo, and thumbnail on this device. It cannot be undone.';
+
+  @override
+  String get settingsImportConfirmAction => 'Replace data';
+
+  @override
+  String get settingsExportSuccess => 'Backup saved.';
+
+  @override
+  String get settingsImportSuccess => 'Data restored from backup.';
+
+  @override
+  String get settingsBackupFailed => 'The backup could not be completed.';
+
+  @override
+  String get settingsBackupUnsupported =>
+      'This file is not a supported 9Gaze backup.';
+
+  @override
+  String get settingsBackupUnreadable => 'The backup could not be read.';
+
+  @override
+  String get onboardingHomeCreateReturningTitle => 'Run the tutorial again';
+
+  @override
+  String get onboardingHomeCreateReturningBody =>
+      'Your saved gazes are listed below. Tap New Gaze to walk through import and export again, or open an existing gaze to practice editing.';
 }
